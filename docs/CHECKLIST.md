@@ -4,7 +4,7 @@
 
 Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 
-## Fase 1 — Arquitetura e plano (`phase-1-arquitetura`) — ✅ concluída, aguardando aprovação dos sócios
+## Fase 1 — Arquitetura e plano (`phase-1-arquitetura`) — ✅ concluída e aprovada (17/10/2026)
 
 - [x] Inspeção do repositório (nada apagado; `COMO-USAR.md` mantido fora do versionamento)
 - [x] `.gitignore` ampliado, `.gitattributes` (LF), `.env.example` sem segredos, `README.md`
@@ -15,7 +15,8 @@ Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 - [~] Verificação em ARM64 emulado (alvo Oracle): libvips e FFmpeg OK; LibreOffice, Pandoc, leitura de HEIC e onnxruntime **não testados** em ARM64 — `architecture/07` §2.1
 - [x] Políticas: AdSense, YouTube ToS, Mercado Pago (parcial), Oracle (página inacessível → NÃO VERIFICADO) — `architecture/12`
 - [x] Entregáveis `docs/architecture/01` a `13`
-- [ ] **Decisões dos sócios** pendentes: D1–D15 em `architecture/12`
+- [x] Decisões dos sócios D1–D15 registradas em `architecture/12` §0 e aplicadas ao `PRD.md` (17/10/2026)
+- [ ] Pendentes: vagas do lote vitalício; subdomínio gratuito (Fase 6); e-mail de suporte
 
 ## Fase 2 — Fundação (`phase-2-fundacao`)
 - [ ] Compose (api, worker, postgres, redis, frontend, beat) sobe com um comando no Windows

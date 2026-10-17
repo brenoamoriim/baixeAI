@@ -1,6 +1,8 @@
 # 10 — Plano de deploy (gratuito)
 
 > Fase 1 · 17/10/2026. Executado na Fase 6. Base: Oracle Cloud Always Free (ver `02`).
+>
+> ✅ Decisão D8/D14: o teste em produção também roda na Oracle, com **subdomínio gratuito** até a compra do domínio. A Vercel Hobby foi descartada (proíbe uso comercial: pagamentos e anúncios — [fair use](https://vercel.com/docs/limits/fair-use-guidelines), 17/10/2026). Provedor de subdomínio gratuito e emissão de certificado sem domínio próprio: **NÃO VERIFICADO**, pesquisar na Fase 6. Com subdomínio de terceiros, o proxy da Cloudflare não se aplica até haver domínio próprio (limite de 100 MB deixa de existir, mas também a proteção DDoS).
 
 ## 1. Topologia
 

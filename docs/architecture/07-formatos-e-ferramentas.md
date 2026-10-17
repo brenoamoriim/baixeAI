@@ -54,7 +54,7 @@ Legenda de status inicial após a Fase 1: todas `planned`. Coluna "Prova" = como
 | DOCX, DOC, ODT, RTF, TXT, HTML → PDF | LibreOffice | saída começa com `%PDF`, `pdfinfo` lê nº de páginas ≥ 1, texto extraído contém marcador do arquivo de teste |
 | DOC → DOCX | LibreOffice | ZIP válido com `word/document.xml`; texto marcador preservado |
 | PDF → TXT | `pdftotext` | texto marcador presente (aviso: PDF escaneado não tem texto — OCR fora do MVP) |
-| PDF → DOCX | pdf2docx (AGPL!) ou LibreOffice (`writer_pdf_import`, qualidade baixa) | **bloqueado até decisão de licença** (`12`) |
+| PDF → DOCX | ✅ LibreOffice (`writer_pdf_import`; decisão D9 — sem AGPL) | ZIP válido com `word/document.xml` e texto marcador; **aviso obrigatório de perda de layout** na UI |
 | XLSX, XLS → CSV | LibreOffice Calc | CSV com as células do teste (UTF-8, separador definido) |
 | CSV → XLSX | LibreOffice Calc | abre no Calc com as mesmas células |
 
@@ -81,7 +81,7 @@ GIF animado → formatos estáticos usa o 1º quadro (avisar). SVG: sanitizado e
 
 Opções: bitrate (lista fechada), taxa de amostragem (8000–48000 em lista), canais (1/2).
 
-### Vídeo (`worker-media`, limite 200 MB e 10 min 🔶 ver limite do Cloudflare em `12`)
+### Vídeo (`worker-media`, limite ✅ 95 MB e 10 min — D10; custo 2 fichas — D1)
 | Entrada | Saída | Codecs | Prova |
 |---|---|---|---|
 | MP4, WEBM, MKV, MOV, AVI | MP4 | H.264 (`libx264`) + AAC | `ffprobe` codec/resolução/duração |

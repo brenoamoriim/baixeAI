@@ -1,6 +1,31 @@
 # 12 — Riscos e decisões abertas
 
-> Fase 1 · 17/10/2026. As decisões são **dos sócios**; aqui vai a recomendação técnica. Até a confirmação, a Fase 2 implementa os padrões recomendados como **configuração** (`system_settings`), para mudar sem reescrever código.
+> Fase 1 · 17/10/2026. As decisões são **dos sócios**. As respostas de 17/10/2026 estão na §0 e já foram aplicadas ao `docs/PRD.md` (que vence em caso de conflito). As §2 e §3 mantêm a recomendação original como histórico.
+
+## 0. Decisões tomadas pelos sócios (17/10/2026)
+
+| # | Decisão |
+|---|---|
+| D1 | Recomendação: 1 ficha por operação; **2 fichas** para conversão de vídeo e download de vídeo > 2 min (configurável) |
+| D2 | Recomendação: ciclo ancorado na assinatura (+1 mês de calendário); avulsas só 90 dias |
+| D3 | Ordem do PRD: diária → plano → avulsa |
+| D3b | Assinantes **não** recebem as 5 diárias, só as do plano |
+| D4 | Vitalício: 2 simultâneos, 50/dia, mesmos limites de tamanho, lote limitado; limites de uso justo **revisáveis a cada 6 meses** (o acesso continua vitalício) |
+| D5 | Troca de plano permitida, **no próximo ciclo**, sem pro-rata, **fichas que sobraram somadas ao novo plano**; reembolso em até **7 dias**, proporcional às fichas não usadas; cancelamento: acesso até o fim do ciclo |
+| D6 | Nome: **"Removedor de objetos"** (interface e pacote) |
+| D7 | Cartão automático + renovação manual para Pix/débito |
+| D8 | Ambiente de teste em produção **na Oracle** (a Vercel Hobby proíbe uso comercial — [fair use](https://vercel.com/docs/limits/fair-use-guidelines), verificado 17/10/2026) com subdomínio gratuito; domínio comprado antes de ir ao mercado |
+| D9 | PDF → DOCX via **LibreOffice** (opção b), com aviso de perda de layout |
+| D10 | Vídeo limitado a **95 MB** no lançamento |
+| D11 | Timeout **devolve** a ficha |
+| D12 | **Sem cancelamento** de job pelo usuário; ação iniciada consome a ficha |
+| D13 | AdSense primeiro só em páginas **sem** o baixador |
+| D14 | Oracle Free (São Paulo) |
+| D15 | CNPJ depois |
+
+Pendentes: quantidade de vagas do lote vitalício; provedor de subdomínio gratuito (Fase 6); e-mail de suporte (depende do domínio).
+
+⚠️ Ponto de atenção jurídico registrado: a frase original "desistência só até 24 horas" foi substituída por reembolso em 7 dias porque o direito de arrependimento do CDC (art. 49) é de 7 dias para compras fora do estabelecimento. Texto final dos Termos exige revisão por advogado.
 
 ## 1. Riscos
 
