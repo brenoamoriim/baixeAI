@@ -1,0 +1,114 @@
+# BaixeAI — development stack.  Start everything with:  docker compose up --build
+# Postgres and Redis are NOT published on the host (ports 5432/6379 are often taken
+# by other projects); only the API (8000) and the frontend (3000) are, on 127.0.0.1.
+name: baixeai
+
+x-backend-env: &backend-env
+  APP_ENV: ${APP_ENV:-development}
+  APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+  SECRET_KEY: ${SECRET_KEY:-}
+  SIGNED_URL_SECRET: ${SIGNED_URL_SECRET:-}
+  GUEST_ID_HMAC_SECRET: ${GUEST_ID_HMAC_SECRET:-}
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-baixeai}:${POSTGRES_PASSWORD:-baixeai_dev_only}@db:5432/${POSTGRES_DB:-baixeai}
+  TEST_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-baixeai}:${POSTGRES_PASSWORD:-baixeai_dev_only}@db:5432/baixeai_test
+  REDIS_URL: redis://:${REDIS_PASSWORD:-redis_dev_only}@redis:6379/0
+  STORAGE_LOCAL_ROOT: /data/storage
+  EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+
+services:
+  db:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-baixeai}
+      POSTGRES_USER: ${POSTGRES_USER:-baixeai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-baixeai_dev_only}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-baixeai} -d ${POSTGRES_DB:-baixeai}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [internal]
+
+  redis:
+    image: redis:8.10.2-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-redis_dev_only}", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD:-redis_dev_only}\" --no-auth-warning ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_dev_only}
+    networks: [internal]
+
+  migrate:
+    build: { context: ./backend, target: dev }
+    command: ["sh", "-c", "alembic upgrade head && python -m app.cli seed"]
+    environment: *backend-env
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [internal]
+
+  api:
+    build: { context: ./backend, target: dev }
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment: *backend-env
+    volumes:
+      - ./backend:/app
+      - storage:/data/storage
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    networks: [internal, edge]
+
+  worker:
+    build: { context: ./backend, target: dev }
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "default", "--loglevel=INFO", "--concurrency=2"]
+    environment: *backend-env
+    volumes:
+      - ./backend:/app
+      - storage:/data/storage
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    networks: [internal]
+
+  beat:
+    build: { context: ./backend, target: dev }
+    command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
+    environment: *backend-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    networks: [internal]
+
+  frontend:
+    build: { context: ./frontend, target: dev }
+    environment:
+      API_INTERNAL_URL: http://api:8000
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
+    networks: [edge]
+
+networks:
+  internal:
+    internal: true
+  edge: {}
+
+volumes:
+  pgdata:
+  redisdata:
+  storage:
