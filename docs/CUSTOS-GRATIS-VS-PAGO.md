@@ -1,5 +1,7 @@
 # Grátis vs. pago — o que esperar (orçamento zero)
 
+> **Atualização (Fase 1, 17/10/2026):** a versão com dados verificados (fonte + data) está em [`architecture/02-hospedagem-e-custos.md`](architecture/02-hospedagem-e-custos.md) §2. Este arquivo é mantido apenas como rascunho original.
+
 > Este documento é um **ponto de partida qualitativo**. Nenhum preço ou limite abaixo foi verificado. A Fase 1 deve pesquisar a documentação oficial atual de cada provedor e substituir tudo marcado "NÃO VERIFICADO" por dados com fonte e data.
 
 ## Resumo honesto
