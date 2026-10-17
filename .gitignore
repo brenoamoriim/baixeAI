@@ -1,0 +1,23 @@
+# Secrets
+.env
+*.env
+!.env.example
+cookies.txt
+*.pem
+*.key
+
+# Dependencies / builds
+node_modules/
+.next/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# User files / local data
+storage/
+*.db
+*.sqlite3
+
+# Logs
+*.log
