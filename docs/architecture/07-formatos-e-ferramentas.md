@@ -30,7 +30,19 @@ Verificação empírica: `docker run python:3.12-slim` (Debian 13 "trixie") + `a
 
 ### 2.1 ARM64 (hospedagem Oracle Ampere)
 
-Resultado do teste emulado (`--platform linux/arm64`): ver relatório final da Fase 1 / `docs/CHECKLIST.md`. Disponibilidade de wheels `onnxruntime` aarch64: **NÃO VERIFICADO** (Fase 3B).
+Teste emulado (QEMU, `docker run --platform linux/arm64 python:3.12-slim`, `uname -m` = `aarch64`) em 17/10/2026:
+
+| Teste | amd64 | arm64 |
+|---|---|---|
+| libvips salvar AVIF / WEBP / TIFF / GIF / JPG | OK | OK |
+| libvips ler AVIF | OK | OK |
+| libvips ler HEIC (`libheif-plugin-libde265`) | OK | **não testado** |
+| FFmpeg H.264 + AAC (MP4) | OK | OK |
+| FFmpeg VP9 + Opus (WEBM) | OK | OK |
+| LibreOffice, Pandoc, pdftotext | instalam e rodam | **não testado** |
+| `onnxruntime` (wheels aarch64) | — | **NÃO VERIFICADO** (Fase 3B) |
+
+Emulação comprova disponibilidade e funcionamento, **não desempenho**: tempos só valem medidos em ARM real (Fase 6).
 
 ## 3. Combinações candidatas (lançamento, PRD §6.2)
 

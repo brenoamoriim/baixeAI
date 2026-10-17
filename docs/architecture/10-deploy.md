@@ -11,7 +11,7 @@ Internet → Cloudflare (DNS + proxy, Free) → VM Oracle Ampere A1 (ARM64, Ubun
 ```
 
 - **Região:** escolher `sa-saopaulo-1` como *home region* no cadastro (latência para o Brasil). A região de origem **não pode ser trocada** depois e os recursos Always Free só valem nela. Disponibilidade de capacidade A1 em São Paulo: **NÃO VERIFICADO** (relatos de "out of capacity" são comuns; tentar em horários diferentes).
-- **Arquitetura ARM64:** imagens multi-arch obrigatórias. Verificado em 17/10/2026: `python:3.12-slim` (Debian 13) tem FFmpeg, libvips, LibreOffice e Pandoc para arm64 (ver `07`). Wheels de `onnxruntime` para Linux aarch64: **NÃO VERIFICADO** nesta fase (checar na Fase 3B).
+- **Arquitetura ARM64:** imagens multi-arch obrigatórias. Verificado em 17/10/2026 (emulação): em `python:3.12-slim` (Debian 13) arm64, FFmpeg e libvips instalam e convertem; LibreOffice e Pandoc **não testados** em arm64 (ver `07` §2.1). Wheels de `onnxruntime` para Linux aarch64: **NÃO VERIFICADO** nesta fase (checar na Fase 3B).
 - **Recuperação de instância ociosa:** a Oracle pode recuperar instâncias Always Free se, em 7 dias, CPU p95 **e** rede **e** memória (A1) ficarem abaixo de 20% ([docs Oracle](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm), 17/10/2026). Hipótese: com Postgres + modelos de IA carregados, a memória fica acima de 20% de 12 GB (2,4 GB). Medir na Fase 6. Converter a conta para *Pay As You Go* (exige cartão; sem cobrança dentro dos limites gratuitos) é citado como forma de evitar a recuperação, mas **NÃO VERIFICADO** em documentação atual.
 
 ## 2. HTTPS

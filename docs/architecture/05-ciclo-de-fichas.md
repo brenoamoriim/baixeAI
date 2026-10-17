@@ -30,7 +30,7 @@ stateDiagram-v2
     [*] --> validando: request com Idempotency-Key
     validando --> rejeitado_sem_custo: entrada inválida / combinação não available / SSRF / sem saldo
     validando --> reservado: transação: lock usuário, debita buckets, ledger(reserve)
-    reservado --> confirmado: job succeeded → ledger(commit)
+    reservado --> confirmado: job completed → ledger(commit)
     reservado --> devolvido: falha do sistema / timeout 🔶 → ledger(release)
     reservado --> confirmado: cancelado pelo usuário (PRD: não devolve)
     reservado --> confirmado: entrada inválida detectada no processamento (PRD: não devolve)
@@ -75,7 +75,7 @@ Anti-abuso: cookie HttpOnly com id aleatório (guardado como HMAC); no máximo `
 
 ## 5. Vitalício (uso justo 🔶 PRD §8)
 
-Sem buckets e sem ledger de fichas. Antes de criar o job: (a) `running/queued` do usuário < `lifetime_max_concurrent_jobs` (sugestão: 2); (b) `usage_records` do dia local < `lifetime_daily_cap` (sugestão: 100); (c) mesmos limites de tamanho dos demais. Excedeu → erro claro, sem cobrança. Valores finais são decisão dos sócios.
+Sem buckets e sem ledger de fichas. Antes de criar o job: (a) `queued/processing` do usuário < `lifetime_max_concurrent_jobs` (sugestão: 2); (b) `usage_records` do dia local < `lifetime_daily_cap` (sugestão: 50 — ver D4 em `12`); (c) mesmos limites de tamanho dos demais. Excedeu → erro claro, sem cobrança. Valores finais são decisão dos sócios.
 
 ## 6. Expiração
 
@@ -111,7 +111,7 @@ Fichas **reservadas** no momento da expiração continuam reservadas: o commit s
 6. Usuário com avulsa de "Conversores" tenta usar o "Removedor de fundo" sem outras fichas → recusado sem custo.
 7. Estorno de avulso com 7 de 10 já usadas → revoga 3, audita.
 8. Admin muda `credit_cost` de 1 para 2 com job em fila → a reserva usa o custo do momento da reserva (snapshot em `credit_reservations.amount`).
-9. Worker morre no meio do job → varredura detecta job `running` além do limite → `release`.
+9. Worker morre no meio do job → varredura detecta job `processing` além do limite → `release`.
 10. Bucket de plano expira com 50 fichas sobrando → `expire` −50; novo ciclo começa com 300/800 (não acumula).
 11. Usuário cancela Premium no dia 10 do ciclo → continua com o saldo até `period_end`.
 12. Vitalício dispara 3 jobs simultâneos com limite 2 → o 3º é recusado sem custo.

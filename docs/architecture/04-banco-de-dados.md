@@ -100,7 +100,7 @@ Proteção append-only: (1) o papel de banco da aplicação recebe só `INSERT, 
 
 ### Processamento
 
-**`processing_jobs`** — `id`, `user_id NULL`, `guest_allowance_id NULL` (CHECK: exatamente um preenchido), `tool_id`, `capability_id`, `status` (`queued`|`running`|`succeeded`|`failed`|`canceled`), `idempotency_key`, `input_meta jsonb` (tamanho, MIME detectado, nome sanitizado), `options jsonb` (validado contra `options_schema`), `input_key`, `output_key`, `output_expires_at`, `progress smallint`, `error_code`, `error_class` (`user_input`|`system`|`timeout`|`canceled`), `queue`, `task_id`, `created_at`, `started_at`, `finished_at`.
+**`processing_jobs`** — `id`, `user_id NULL`, `guest_allowance_id NULL` (CHECK: exatamente um preenchido), `tool_id`, `capability_id`, `status` (`queued`|`processing`|`completed`|`failed`|`canceled`|`expired` — `expired` = resultado apagado após a retenção), `idempotency_key`, `input_meta jsonb` (tamanho, MIME detectado, nome sanitizado), `options jsonb` (validado contra `options_schema`), `input_key`, `output_key`, `output_expires_at`, `progress smallint`, `error_code`, `error_class` (`user_input`|`system`|`timeout`|`canceled`), `queue`, `task_id`, `created_at`, `started_at`, `finished_at`.
 - `UNIQUE (user_id, idempotency_key)`; índice `(status, created_at)` para varredura de jobs presos.
 
 **`usage_records`** — `id`, `user_id NULL`, `guest_allowance_id NULL`, `tool_id`, `job_id UNIQUE`, `credits_charged`, `charged_from` (`daily`|`plan`|`package`|`lifetime`|`guest`), `input_bytes`, `duration_ms`, `created_at`. Índice `(user_id, created_at)` — base do histórico e do teto diário do vitalício.

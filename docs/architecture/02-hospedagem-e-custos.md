@@ -95,7 +95,7 @@ Taxas: [página oficial de checkout](https://www.mercadopago.com.br/ferramentas-
 Leitura:
 - Na camada gratuita o custo marginal por ficha é R$ 0 — a margem é quase toda receita. O problema não é dinheiro, é **capacidade**: um Premium que usa 800 fichas de vídeo consome ~96.000 core-s — **mais que um dia inteiro de toda a capacidade de workers** (H7).
 - Como hoje 1 ficha = 1 operação qualquer, uma ficha de vídeo custa ~40× uma de imagem. Recomendação em `12`: custo em fichas por ferramenta/tamanho, ou limites de vídeo mais baixos.
-- **Vitalício** (R$ 114–119 líquido, uma vez): com teto de 100 ops/dia no mix H6, um único usuário vitalício pode usar ~2.300 core-s/dia (~2,7% da capacidade). **~37 vitalícios intensos saturam a máquina** sem nenhuma receita recorrente. Recomendação em `12`.
+- **Vitalício** (R$ 114–119 líquido, uma vez): com teto de 100 ops/dia no mix H6, um único usuário vitalício pode usar ~2.300 core-s/dia (~2,7% da capacidade). **~37 vitalícios intensos saturam a máquina** sem nenhuma receita recorrente (com teto de 50/dia: ~74). Recomendação em `12` (D4).
 
 ## 5. Limites reais para vídeo e IA (a medir)
 
