@@ -224,7 +224,7 @@ def upgrade() -> None:
     sa.CheckConstraint("status IN ('available', 'planned', 'unsupported')", name=op.f('ck_tool_capabilities_status')),
     sa.ForeignKeyConstraint(['tool_id'], ['tool_definitions.id'], name=op.f('fk_tool_capabilities_tool_id_tool_definitions')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_tool_capabilities')),
-    sa.UniqueConstraint('tool_id', 'input_format', 'output_format', name='tool_io')
+    sa.UniqueConstraint('tool_id', 'input_format', 'output_format', name='uq_tool_capabilities_io')
     )
     op.create_index(op.f('ix_tool_capabilities_tool_id'), 'tool_capabilities', ['tool_id'], unique=False)
     op.create_table('payments',
@@ -311,7 +311,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_credit_reservations_user_id_users')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_credit_reservations')),
     sa.UniqueConstraint('job_id', name=op.f('uq_credit_reservations_job_id')),
-    sa.UniqueConstraint('user_id', 'idempotency_key', name='idempotency')
+    sa.UniqueConstraint('user_id', 'idempotency_key', name='uq_credit_reservations_idempotency')
     )
     op.create_table('subscription_cycles',
     sa.Column('id', sa.UUID(), nullable=False),
@@ -327,7 +327,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['subscription_id'], ['subscriptions.id'], name=op.f('fk_subscription_cycles_subscription_id_subscriptions')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_subscription_cycles')),
     sa.UniqueConstraint('payment_id', name=op.f('uq_subscription_cycles_payment_id')),
-    sa.UniqueConstraint('subscription_id', 'cycle_number', name='number')
+    sa.UniqueConstraint('subscription_id', 'cycle_number', name='uq_subscription_cycles_number')
     )
     op.create_table('terms_acceptances',
     sa.Column('id', sa.UUID(), nullable=False),
@@ -392,7 +392,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['tool_id'], ['tool_definitions.id'], name=op.f('fk_credit_buckets_tool_id_tool_definitions')),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_credit_buckets_user_id_users')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_credit_buckets')),
-    sa.UniqueConstraint('user_id', 'kind', 'period_key', name='period')
+    sa.UniqueConstraint('user_id', 'kind', 'period_key', name='uq_credit_buckets_period')
     )
     op.create_index('ix_credit_buckets_consumable', 'credit_buckets', ['user_id', 'expires_at'], unique=False, postgresql_where=sa.text("status = 'active'"))
     op.create_table('credit_ledger',

@@ -78,7 +78,9 @@ class Subscription(Base):
 
 class SubscriptionCycle(Base):
     __tablename__ = "subscription_cycles"
-    __table_args__ = (UniqueConstraint("subscription_id", "cycle_number", name="number"),)
+    __table_args__ = (
+        UniqueConstraint("subscription_id", "cycle_number", name="uq_subscription_cycles_number"),
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     subscription_id: Mapped[uuid.UUID] = mapped_column(

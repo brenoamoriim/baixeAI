@@ -1,0 +1,413 @@
+"""Job lifecycle: validate -> price -> reserve -> queue -> run -> commit/release.
+
+Refund policy (PRD §2): system failure and timeout release the credits; invalid input found
+during processing commits them; there is no user cancellation (D12).
+"""
+
+import logging
+import shutil
+import tempfile
+import uuid
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+
+from celery.exceptions import SoftTimeLimitExceeded
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.core import clock
+from app.core.config import get_settings
+from app.core.errors import AppError, FairUseLimit, NotFound, RateLimited
+from app.models import (
+    CreditCostRule,
+    CreditReservation,
+    GuestAllowance,
+    ProcessingJob,
+    ToolCapability,
+    ToolDefinition,
+    UsageRecord,
+)
+from app.security.crypto import keyed_hash
+from app.services import credits, guests
+from app.services.settings import get_setting
+from app.storage.base import get_storage, new_key
+from app.tools.base import ToolSystemError, ToolUserError
+from app.tools.registry import get_handler
+
+log = logging.getLogger(__name__)
+ACTIVE_STATUSES = ("queued", "processing")
+
+
+@dataclass
+class Actor:
+    """Who is asking: a logged-in user, or a guest identified by an anonymous cookie."""
+
+    user_id: uuid.UUID | None = None
+    guest_anon_id: str | None = None
+    ip: str = "0.0.0.0"  # noqa: S104 - placeholder, never used to bind
+
+
+# --------------------------------------------------------------------------- catalog / pricing
+
+
+def available_capability(
+    db: Session, tool_id: str, input_format: str, output_format: str
+) -> tuple[ToolDefinition, ToolCapability]:
+    tool = db.get(ToolDefinition, tool_id)
+    handler = get_handler(tool_id)
+    if tool is None or not tool.enabled or handler is None:
+        raise NotFound("Ferramenta indisponível.")
+    if tool.dev_only and get_settings().is_production:
+        raise NotFound("Ferramenta indisponível.")
+    capability = db.execute(
+        select(ToolCapability).where(
+            ToolCapability.tool_id == tool_id,
+            ToolCapability.input_format == input_format,
+            ToolCapability.output_format == output_format,
+            ToolCapability.status == "available",
+        )
+    ).scalar_one_or_none()
+    if capability is None:
+        raise NotFound("Combinação de formatos indisponível.", code="capability_unavailable")
+    return tool, capability
+
+
+def credit_cost(
+    db: Session, tool: ToolDefinition, capability: ToolCapability, meta: dict
+) -> int:
+    """Most specific active rule wins (D1); otherwise the tool's base cost."""
+    rules = db.execute(
+        select(CreditCostRule)
+        .where(CreditCostRule.tool_id == tool.id, CreditCostRule.active.is_(True))
+        .order_by(CreditCostRule.priority.desc())
+    ).scalars()
+    duration = meta.get("duration_seconds")
+    for rule in rules:
+        if rule.category is not None and rule.category != capability.category:
+            continue
+        if rule.min_duration_seconds is not None and (
+            duration is None or duration < rule.min_duration_seconds
+        ):
+            continue
+        return rule.cost
+    return tool.credit_cost
+
+
+# --------------------------------------------------------------------------- creation
+
+
+def create_job(
+    db: Session,
+    actor: Actor,
+    *,
+    tool_id: str,
+    input_format: str,
+    output_format: str,
+    options: dict,
+    idempotency_key: str,
+) -> tuple[ProcessingJob, bool]:
+    """Create (or return the existing) job for this idempotency key. Returns (job, created)."""
+    at = clock.now()
+    try:
+        with db.begin():
+            # Validation and pricing happen before any reservation: invalid input costs nothing.
+            tool, capability = available_capability(db, tool_id, input_format, output_format)
+            handler = get_handler(tool_id)
+            clean_options = handler.validate_options(input_format, output_format, options)
+            cost = credit_cost(db, tool, capability, handler.metadata(clean_options))
+            if actor.user_id is not None:
+                job, created = _create_for_user(
+                    db, actor, tool, capability, clean_options, cost, idempotency_key, at
+                )
+            else:
+                job, created = _create_for_guest(
+                    db, actor, tool, capability, clean_options, cost, idempotency_key, at
+                )
+    except IntegrityError:
+        # A concurrent request with the same idempotency key won the race.
+        db.rollback()
+        job = _find_existing(db, actor, idempotency_key)
+        db.commit()
+        if job is None:
+            raise
+        return job, False
+
+    if created:
+        dispatch(db, job)
+    return job, created
+
+
+def _find_existing(db: Session, actor: Actor, key: str) -> ProcessingJob | None:
+    if actor.user_id is not None:
+        return db.execute(
+            select(ProcessingJob).where(
+                ProcessingJob.user_id == actor.user_id, ProcessingJob.idempotency_key == key
+            )
+        ).scalar_one_or_none()
+    return db.execute(
+        select(ProcessingJob)
+        .join(GuestAllowance, GuestAllowance.id == ProcessingJob.guest_allowance_id)
+        .where(
+            GuestAllowance.anon_id_hash == keyed_hash(actor.guest_anon_id, purpose="guest"),
+            ProcessingJob.idempotency_key == key,
+        )
+    ).scalar_one_or_none()
+
+
+def _new_job(tool, capability, options, cost, key, charged_from, **owner) -> ProcessingJob:
+    return ProcessingJob(
+        id=uuid.uuid4(),
+        tool_id=tool.id,
+        capability_id=capability.id,
+        status="queued",
+        charged_from=charged_from,
+        credit_cost=cost,
+        idempotency_key=key,
+        options=options,
+        input_meta={},
+        queue=tool.queue,
+        **owner,
+    )
+
+
+def _create_for_user(db, actor, tool, capability, options, cost, key, at):
+    user = credits.lock_user(db, actor.user_id)
+    existing = _find_existing(db, actor, key)
+    if existing is not None:
+        return existing, False
+    if user.status != "active":
+        raise AppError("Conta indisponível.", code="account_inactive")
+
+    active_jobs = db.execute(
+        select(func.count())
+        .select_from(ProcessingJob)
+        .where(ProcessingJob.user_id == user.id, ProcessingJob.status.in_(ACTIVE_STATUSES))
+    ).scalar_one()
+
+    if credits.has_lifetime(db, user.id):
+        _check_lifetime_fair_use(db, user.id, active_jobs, at)
+        job = _new_job(tool, capability, options, cost, key, "lifetime", user_id=user.id)
+        db.add(job)
+        db.flush()
+        return job, True
+
+    if active_jobs >= int(get_setting(db, "max_pending_jobs_per_user")):
+        raise RateLimited("Você já tem processamentos em andamento. Aguarde terminarem.")
+    job = _new_job(tool, capability, options, cost, key, "credits", user_id=user.id)
+    db.add(job)
+    db.flush()
+    credits.reserve(db, user, tool_id=tool.id, amount=cost, job_id=job.id,
+                    idempotency_key=key, at=at)
+    return job, True
+
+
+def _check_lifetime_fair_use(db: Session, user_id: uuid.UUID, active_jobs: int, at: datetime):
+    if active_jobs >= int(get_setting(db, "lifetime_max_concurrent_jobs")):
+        raise FairUseLimit("Limite de processamentos simultâneos do plano vitalício atingido.")
+    day_start, _ = clock.local_day_bounds(clock.local_date(at))
+    today = db.execute(
+        select(func.count())
+        .select_from(ProcessingJob)
+        .where(
+            ProcessingJob.user_id == user_id,
+            ProcessingJob.created_at >= day_start,
+            ProcessingJob.status != "failed",
+        )
+    ).scalar_one()
+    if today >= int(get_setting(db, "lifetime_daily_cap")):
+        raise FairUseLimit("Limite diário de uso justo do plano vitalício atingido.")
+
+
+def _create_for_guest(db, actor, tool, capability, options, cost, key, at):
+    if not actor.guest_anon_id:
+        raise AppError("Sessão de visitante ausente.", code="guest_cookie_missing")
+    allowance = guests.get_or_create_allowance(db, actor.guest_anon_id, actor.ip, at)
+    existing = db.execute(
+        select(ProcessingJob).where(
+            ProcessingJob.guest_allowance_id == allowance.id, ProcessingJob.idempotency_key == key
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return existing, False
+    job = _new_job(tool, capability, options, cost, key, "guest", guest_allowance_id=allowance.id)
+    guests.reserve(db, allowance, amount=cost, job_id=job.id)
+    db.add(job)
+    db.flush()
+    return job, True
+
+
+def dispatch(db: Session, job: ProcessingJob) -> None:
+    from app.workers.tasks import run_job
+
+    try:
+        result = run_job.apply_async(args=[str(job.id)], queue=job.queue)
+    except Exception:
+        log.exception("enqueue failed", extra={"job_id": str(job.id)})
+        fail_job(db, job.id, error_class="system", error_code="enqueue_failed")
+        raise AppError("Não foi possível iniciar o processamento. Tente novamente.",
+                       code="enqueue_failed") from None
+    if result is not None and getattr(result, "id", None):
+        with db.begin():
+            locked = db.get(ProcessingJob, job.id, with_for_update=True)
+            if locked.task_id is None:
+                locked.task_id = result.id
+
+
+# --------------------------------------------------------------------------- execution
+
+
+def run(db: Session, job_id: uuid.UUID) -> None:
+    """Execute a queued job. Safe to call twice: only a `queued` job is started."""
+    with db.begin():
+        job = db.get(ProcessingJob, job_id, with_for_update=True)
+        if job is None or job.status != "queued":
+            return
+        job.status = "processing"
+        job.started_at = clock.now()
+        options = dict(job.options)
+        tool_id = job.tool_id
+
+    handler = get_handler(tool_id)
+    work_dir = Path(tempfile.mkdtemp(prefix="job-"))
+    try:
+        if handler is None:
+            raise ToolSystemError("handler_missing")
+        result = handler.execute(options, work_dir)
+        key = new_key(f"jobs/{job_id.hex}", result.output_path.suffix.lstrip("."))
+        get_storage().save_file(key, result.output_path)
+        complete_job(db, job_id, output_key=key, filename=result.filename)
+    except ToolUserError as exc:
+        fail_job(db, job_id, error_class="user_input", error_code=exc.code)
+    except ToolSystemError as exc:
+        fail_job(db, job_id, error_class="system", error_code=exc.code)
+    except (TimeoutError, SoftTimeLimitExceeded):
+        fail_job(db, job_id, error_class="timeout", error_code="time_limit")
+    except Exception:
+        log.exception("job crashed", extra={"job_id": str(job_id)})
+        fail_job(db, job_id, error_class="system", error_code="unexpected")
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def _lock_owner_then_job(db: Session, job_id: uuid.UUID) -> ProcessingJob | None:
+    owner = db.execute(
+        select(ProcessingJob.user_id).where(ProcessingJob.id == job_id)
+    ).scalar_one_or_none()
+    if owner is not None:
+        credits.lock_user(db, owner)
+    return db.get(ProcessingJob, job_id, with_for_update=True)
+
+
+def _reservation_id(db: Session, job_id: uuid.UUID) -> uuid.UUID | None:
+    return db.execute(
+        select(CreditReservation.id).where(CreditReservation.job_id == job_id)
+    ).scalar_one_or_none()
+
+
+def complete_job(db: Session, job_id: uuid.UUID, *, output_key: str, filename: str) -> None:
+    at = clock.now()
+    with db.begin():
+        job = _lock_owner_then_job(db, job_id)
+        if job is None or job.status not in ACTIVE_STATUSES:
+            return
+        _settle(db, job, at, refund=False)
+        job.status = "completed"
+        job.progress = 100
+        job.output_key = output_key
+        job.output_filename = filename
+        job.finished_at = at
+        job.output_expires_at = at + timedelta(hours=get_settings().file_retention_hours)
+        db.add(
+            UsageRecord(
+                user_id=job.user_id,
+                guest_allowance_id=job.guest_allowance_id,
+                tool_id=job.tool_id,
+                job_id=job.id,
+                credits_charged=0 if job.charged_from == "lifetime" else job.credit_cost,
+                charged_from=job.charged_from,
+                duration_ms=int((at - job.started_at).total_seconds() * 1000)
+                if job.started_at
+                else None,
+            )
+        )
+
+
+def fail_job(db: Session, job_id: uuid.UUID, *, error_class: str, error_code: str) -> None:
+    at = clock.now()
+    with db.begin():
+        job = _lock_owner_then_job(db, job_id)
+        if job is None or job.status not in ACTIVE_STATUSES:
+            return
+        refund = error_class in ("system", "timeout")
+        _settle(db, job, at, refund=refund)
+        job.status = "failed"
+        job.error_class = error_class
+        job.error_code = error_code
+        job.finished_at = at
+        if not refund:
+            db.add(
+                UsageRecord(
+                    user_id=job.user_id,
+                    guest_allowance_id=job.guest_allowance_id,
+                    tool_id=job.tool_id,
+                    job_id=job.id,
+                    credits_charged=0 if job.charged_from == "lifetime" else job.credit_cost,
+                    charged_from=job.charged_from,
+                )
+            )
+
+
+def _settle(db: Session, job: ProcessingJob, at: datetime, *, refund: bool) -> None:
+    if job.charged_from == "credits":
+        reservation_id = _reservation_id(db, job.id)
+        if refund:
+            credits.release(db, reservation_id, at=at, reason=job.error_code or "failure")
+        else:
+            credits.commit(db, reservation_id, at=at)
+    elif job.charged_from == "guest":
+        if refund:
+            guests.release(db, job.guest_allowance_id, job.id)
+        else:
+            guests.commit(db, job.guest_allowance_id, job.id, at)
+
+
+# --------------------------------------------------------------------------- maintenance
+
+
+def sweep_stuck_jobs(db_factory, at: datetime | None = None) -> int:
+    """Jobs that never finished (dead worker) are failed as a system error -> refund."""
+    at = at or clock.now()
+    with db_factory() as db:
+        limit = int(get_setting(db, "job_stuck_after_seconds"))
+        stuck = db.execute(
+            select(ProcessingJob.id).where(
+                ProcessingJob.status.in_(ACTIVE_STATUSES),
+                ProcessingJob.created_at < at - timedelta(seconds=limit),
+            )
+        ).scalars().all()
+    for job_id in stuck:
+        with db_factory() as db:
+            fail_job(db, job_id, error_class="system", error_code="stuck")
+    return len(stuck)
+
+
+def cleanup_expired_outputs(db_factory, at: datetime | None = None) -> int:
+    at = at or clock.now()
+    with db_factory() as db:
+        due = db.execute(
+            select(ProcessingJob.id).where(
+                ProcessingJob.status == "completed", ProcessingJob.output_expires_at <= at
+            )
+        ).scalars().all()
+    storage = get_storage()
+    for job_id in due:
+        with db_factory() as db, db.begin():
+            job = db.get(ProcessingJob, job_id, with_for_update=True)
+            if job.status != "completed":
+                continue
+            if job.output_key:
+                storage.delete(job.output_key)
+            job.status = "expired"
+    return len(due)

@@ -27,7 +27,7 @@ GUEST_STATUSES = ("available", "reserved", "consumed")
 class CreditBucket(Base):
     __tablename__ = "credit_buckets"
     __table_args__ = (
-        UniqueConstraint("user_id", "kind", "period_key", name="period"),
+        UniqueConstraint("user_id", "kind", "period_key", name="uq_credit_buckets_period"),
         CheckConstraint(in_values("kind", BUCKET_KINDS), name="kind"),
         CheckConstraint(in_values("status", BUCKET_STATUSES), name="status"),
         CheckConstraint("granted > 0", name="granted_positive"),
@@ -69,7 +69,7 @@ class CreditBucket(Base):
 class CreditReservation(Base):
     __tablename__ = "credit_reservations"
     __table_args__ = (
-        UniqueConstraint("user_id", "idempotency_key", name="idempotency"),
+        UniqueConstraint("user_id", "idempotency_key", name="uq_credit_reservations_idempotency"),
         CheckConstraint(in_values("status", RESERVATION_STATUSES), name="status"),
         CheckConstraint("amount > 0", name="amount_positive"),
     )

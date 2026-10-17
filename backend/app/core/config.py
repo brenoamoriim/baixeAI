@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     csrf_cookie_name: str = "baixeai_csrf"
     guest_cookie_name: str = "baixeai_guest"
 
+    # Number of reverse proxies in front of the API that append to X-Forwarded-For.
+    # Dev: Next.js rewrite (1). Production with Caddy -> Next -> API: set accordingly.
+    trusted_proxy_hops: int = 0
+
     celery_task_always_eager: bool = False
 
     @model_validator(mode="after")

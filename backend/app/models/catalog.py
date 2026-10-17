@@ -58,7 +58,7 @@ class ToolDefinition(Base):
 class ToolCapability(Base):
     __tablename__ = "tool_capabilities"
     __table_args__ = (
-        UniqueConstraint("tool_id", "input_format", "output_format", name="tool_io"),
+        UniqueConstraint("tool_id", "input_format", "output_format", name="uq_tool_capabilities_io"),
         CheckConstraint(in_values("status", CAPABILITY_STATUSES), name="status"),
     )
 
