@@ -1,10 +1,65 @@
 # BaixeAI
 
 Plataforma web brasileira de utilitários online (freemium, moeda interna "ficha"):
-baixador de vídeos, conversores, removedor de fundo e remoção de objetos em imagens.
+baixador de vídeos, conversores, removedor de fundo e removedor de objetos.
 
-> **Estado atual:** Fase 1 — arquitetura e plano. Ainda não há código de aplicação.
+> **Estado atual:** Fase 2 — fundação (auth, fichas, jobs, storage, shell do frontend).
+> As ferramentas reais ainda **não** existem: aparecem como "Em breve".
 > Veja [`docs/CHECKLIST.md`](docs/CHECKLIST.md) para o progresso.
+
+## Rodar tudo (Windows 11 + Docker Desktop, PowerShell)
+
+```powershell
+docker compose up --build
+```
+
+Isso sobe: `db` (PostgreSQL), `redis`, `migrate` (aplica migrações + seed e encerra), `api`
+(FastAPI), `worker` e `beat` (Celery) e `frontend` (Next.js).
+
+| O quê | Endereço |
+|---|---|
+| Site | http://localhost:3000 |
+| API (docs OpenAPI, só fora de produção) | http://localhost:8000/api/docs |
+| Saúde | http://localhost:8000/healthz · http://localhost:8000/readyz |
+
+PostgreSQL e Redis **não** são publicados no host (evita conflito com outros projetos nas
+portas 5432/6379). Sem `.env`, o Compose usa valores de desenvolvimento. Para personalizar,
+copie `.env.example` para `.env` (nunca versione o `.env`).
+
+### E-mails em desenvolvimento
+
+Não há envio real: o conteúdo (com o link de confirmação/recuperação) aparece no log da API:
+
+```powershell
+docker compose logs api | Select-String "token="
+```
+
+### Comandos de administração
+
+```powershell
+# primeiro admin (sem credencial embutida no código; a senha é pedida sem eco)
+docker compose exec api python -m app.cli create-admin --email voce@exemplo.com
+
+# concessões manuais até a Fase 4 (pagamentos):
+docker compose exec api python -m app.cli grant-plan --email x@y.com --plan pro
+docker compose exec api python -m app.cli set-next-plan --email x@y.com --plan premium
+docker compose exec api python -m app.cli renew-plan --email x@y.com
+docker compose exec api python -m app.cli grant-package --email x@y.com --tool converter
+docker compose exec api python -m app.cli grant-lifetime --email x@y.com
+```
+
+> Para `create-admin` sem terminal interativo, use `--password` (fica no histórico do shell; evite em produção).
+
+### Testes
+
+```powershell
+# backend: Postgres e Redis reais, banco separado `baixeai_test`
+docker compose up -d db redis
+docker compose run --rm --build migrate pytest
+
+# frontend
+cd frontend; npm ci; npm test; npm run lint; npm run typecheck
+```
 
 ## Documentação
 
@@ -15,19 +70,11 @@ baixador de vídeos, conversores, removedor de fundo e remoção de objetos em i
 | [`docs/CHECKLIST.md`](docs/CHECKLIST.md) | Estado do projeto por fase |
 | [`docs/architecture/`](docs/architecture/) | Arquitetura, custos, banco, fichas, pagamentos, segurança, testes, deploy, riscos, roadmap |
 
-## Stack (planejada)
+## Stack
 
-- Frontend: Next.js + React + TypeScript + Tailwind CSS
-- Backend: Python 3.12, FastAPI, Pydantic, SQLAlchemy 2, Alembic, PostgreSQL
-- Fila/cache/rate limit: Redis + Celery
+- Frontend: Next.js 16 + React 19 + TypeScript + Tailwind CSS 4
+- Backend: Python 3.12, FastAPI, Pydantic 2, SQLAlchemy 2, Alembic, PostgreSQL 17
+- Fila/cache/rate limit: Redis 8 + Celery 5
 - Infra: Docker + Docker Compose
 
-## Ambiente de desenvolvimento
-
-Windows 11 + VS Code + Docker Desktop (WSL 2). O backend roda em contêiner
-(Python 3.12), então não é necessário instalar Python 3.12 no Windows.
-Instruções de execução serão adicionadas na Fase 2.
-
-## Segredos
-
-Copie `.env.example` para `.env` e preencha localmente. **Nunca versione `.env`.**
+O backend roda em contêiner (Python 3.12); não é preciso instalar Python 3.12 no Windows.

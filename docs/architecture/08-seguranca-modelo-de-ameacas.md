@@ -45,6 +45,16 @@ Atacantes: usuário abusivo (quer fichas grátis), bot (abuso do visitante, scra
 - **Baixador:** só conteúdo público; sem cookies/login; aceite de direitos registrado; limite de duração e tamanho consultados **antes** de baixar (metadados do yt-dlp) e reforçados durante (`--max-filesize`); saída recodificada/remuxada pelo FFmpeg em sandbox.
 - **IA:** modelos embutidos na imagem (sem download em runtime); entrada redimensionada a um teto de pixels antes da inferência; um modelo carregado por processo.
 
+## 3.1 Achados da Fase 2 (implementação)
+
+| Achado | Situação |
+|---|---|
+| O proxy de rewrites do Next.js **não acrescenta** o IP ao `X-Forwarded-For`: só preenche se vier vazio (`??=` em `next/dist/server/base-server.js`). Um cliente que envie o cabeçalho poderia falsificar o IP visto pela API (rate limit e limite de visitante por IP) | Em dev aceitável. **Produção (Fase 6):** o Caddy na frente deve **sobrescrever** `X-Forwarded-For` com o IP real; `TRUSTED_PROXY_HOPS` ajustado e testado |
+| O usuário do Postgres no Compose de dev é superusuário: poderia contornar o trigger append-only (`session_replication_role`) | Os testes usam isso só para limpar tabelas. **Produção:** a API conecta com papel **sem** superusuário, sem `UPDATE/DELETE` no ledger (Fase 6) |
+| E-mail em modo `console` registra links com token no log | Só em dev; provedor real antes do deploy |
+| `npm audit`: 5 "high" em dependências de **desenvolvimento** (`braces` via `eslint-config-next`); 0 em produção | A correção automática rebaixa o `eslint-config-next` para 14 (incompatível). Reavaliar a cada atualização do Next |
+| Rate limit em Redis por janela fixa | Simples; permite rajada na virada da janela. Aceito no MVP |
+
 ## 4. Riscos residuais (aceitos e documentados)
 
 1. **Zero-day** em FFmpeg/LibreOffice/libvips: mitigado por isolamento, não eliminado.

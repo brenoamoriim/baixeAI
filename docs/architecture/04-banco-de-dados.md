@@ -1,6 +1,6 @@
 # 04 — Banco de dados (PostgreSQL)
 
-> Fase 1 · 17/10/2026. Esquema-alvo; as migrações Alembic da Fase 2 implementam isto. Tipos: `uuid` (PK geradas no servidor), `timestamptz` sempre em UTC (conversão para `America/Sao_Paulo` só na borda), dinheiro em **centavos inteiros** (`integer`), nunca `float`.
+> Fase 1 · 17/10/2026. Implementado na Fase 2 (migração `backend/migrations/versions/20261017_2e1807901780_initial_schema.py`). Diferenças em relação ao rascunho da Fase 1 estão na §5. Tipos: `uuid` (PK geradas no servidor), `timestamptz` sempre em UTC (conversão para `America/Sao_Paulo` só na borda), dinheiro em **centavos inteiros** (`integer`), nunca `float`.
 
 ## 1. Diagrama (principais relações)
 
@@ -150,3 +150,13 @@ Camadas de defesa:
 3. `UNIQUE (user_id, idempotency_key)` — reenvio do mesmo request devolve a mesma reserva.
 4. `UNIQUE (user_id, kind, period_key)` e `UNIQUE (provider_payment_id)` — concessões não duplicam.
 5. Teste real de concorrência na Fase 2: N requisições paralelas com saldo 1 → exatamente 1 sucesso (ver `09-testes.md`).
+
+## 5. Ajustes feitos na implementação (Fase 2)
+
+- `tool_definitions.dev_only` — ferramenta de teste (`echo`) nunca aparece nem executa com `APP_ENV=production`.
+- `credit_cost_rules` — regras de custo por categoria/duração (D1).
+- `processing_jobs.charged_from` (`credits`|`lifetime`|`guest`) e `credit_cost` (snapshot do custo); `output_filename`.
+- `subscription_cycles.plan_id` — permite detectar troca de plano entre ciclos (transporte de sobra, D5).
+- `usage_records.charged_from` usa `credits`|`lifetime`|`guest`; a origem fina (diária/plano/avulsa) fica no ledger.
+- Constraints com nomes explícitos (`uq_credit_buckets_period`, `uq_credit_reservations_idempotency`, `uq_tool_capabilities_io`, `uq_subscription_cycles_number`).
+- O trigger append-only também bloqueia `TRUNCATE`.

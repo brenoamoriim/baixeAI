@@ -1,6 +1,6 @@
 # BaixeAI — Checklist do projeto
 
-> Memória do projeto entre sessões. Atualizado a cada entrega. Última atualização: **17/10/2026** (Fase 1).
+> Memória do projeto entre sessões. Atualizado a cada entrega. Última atualização: **17/10/2026** (Fase 2).
 
 Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 
@@ -18,20 +18,24 @@ Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 - [x] Decisões dos sócios D1–D15 registradas em `architecture/12` §0 e aplicadas ao `PRD.md` (17/10/2026)
 - [ ] Pendentes: vagas do lote vitalício; subdomínio gratuito (Fase 6); e-mail de suporte
 
-## Fase 2 — Fundação (`phase-2-fundacao`)
-- [ ] Compose (api, worker, postgres, redis, frontend, beat) sobe com um comando no Windows
-- [ ] ⚠️ Na máquina de dev, as portas **5432, 5433 e 6379 já estão em uso** por outros projetos → não publicar Postgres/Redis no host (ou usar 5434/6380)
-- [ ] ⚠️ Python local é 3.10; backend roda em contêiner Python 3.12
-- [ ] Modelos + migrações Alembic (`architecture/04`)
-- [ ] Auth (cadastro, login, logout, verificação de e-mail, recuperação, sessões, Argon2id, rate limit, CSRF)
-- [ ] Papéis `user`/`admin` + CLI do primeiro admin
-- [ ] Registry de ferramentas/capacidades
-- [ ] Núcleo de fichas (visitante, diária, plano, avulsas, vitalício, reserva/confirmação/devolução, expiração)
-- [ ] Jobs + Celery + ferramenta "eco" (só dev/test)
-- [ ] `StorageProvider` local + links assinados + limpeza
-- [ ] Segurança base (headers, CORS, erros genéricos, logs, health checks)
-- [ ] Frontend shell (pt-BR)
-- [ ] Testes executados (incl. concorrência de `architecture/09` §2)
+## Fase 2 — Fundação (`phase-2-fundacao`) — ✅ concluída, aguardando aprovação
+
+- [x] `docker compose up --build` sobe db, redis, migrate (migrações + seed), api, worker, beat e frontend (Windows + Docker Desktop)
+- [x] Postgres/Redis não publicados no host (portas 5432/5433/6379 já usadas por outros projetos nesta máquina)
+- [x] Backend em contêiner Python 3.12 (Python local é 3.10)
+- [x] Modelos + migração Alembic inicial (upgrade → downgrade → upgrade testados); triggers append-only em `credit_ledger` e `audit_events`
+- [x] Auth: cadastro, login, logout, verificação de e-mail, recuperação de senha (revoga sessões), Argon2id, cookies HttpOnly/SameSite, CSRF double-submit, rate limit por IP/e-mail, respostas sem enumeração de e-mail
+- [x] Papéis `user`/`admin`; `python -m app.cli create-admin`; endpoint admin protegido
+- [x] Registry de ferramentas/capacidades (só `available` + handler registrado é exposto); 4 ferramentas reais "Em breve"
+- [x] Fichas: visitante (1 única, limite por IP), diária 5 (reset 00:00 SP, sem acúmulo, só com e-mail verificado e sem assinatura — D3b), plano Pro/Premium por ciclo (+1 mês de calendário), troca de plano com sobra somada (D5), avulsas por ferramenta 90 dias, vitalício sem contagem com teto 2 simultâneos / 50 por dia (D4), regras de custo (D1), reserva → confirmação → devolução (timeout devolve — D11), compensação de 24 h, sem cancelamento (D12), expiração periódica, reconciliação do ledger
+- [x] Jobs (`queued, processing, completed, failed, expired`) + Celery + beat; ferramenta "eco" só fora de produção
+- [x] `StorageProvider` local (chaves geradas no servidor, anti path traversal), link assinado **e** checagem de dono, limpeza automática
+- [x] Segurança base: headers, CORS restrito, erros genéricos com request id, logs JSON, `/healthz` e `/readyz`, recusa iniciar em produção sem segredos fortes
+- [x] Frontend pt-BR: início, entrar, cadastrar, recuperar/redefinir senha, verificar e-mail, painel (fichas por origem), componente genérico de ferramenta
+- [x] Testes executados: backend 70 (incl. 6 de concorrência real); frontend 9; lint/typecheck ok; imagens de produção construídas a partir de clone limpo
+- [ ] Pendências conhecidas → Fase 6: papel de banco sem superusuário para a API; Caddy sobrescrevendo `X-Forwarded-For`; provedor de e-mail real
+- [ ] Pendência → Fase 3A: endpoint de **estimativa de custo** antes de confirmar (hoje o painel mostra o custo base; o backend sempre recalcula); workers por fila (`light`, `media`, `ai`, `download`)
+- [ ] Pendência → Fase 4: criar assinatura/pacote pelo pagamento (hoje só via CLI)
 
 ## Fase 3A — Conversores
 - [ ] Matriz real de codecs/filtros (amd64 + arm64)

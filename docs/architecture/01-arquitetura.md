@@ -49,6 +49,8 @@ flowchart LR
 | `redis` | Broker Celery, progresso de jobs, rate limit, cache curto | Não guarda nada que não possa ser perdido (exceto fila em trânsito, com AOF) |
 | `caddy` | TLS automático, cabeçalhos de segurança, limite de corpo, roteamento | — |
 
+> Fase 2: há um único `worker` (fila `default`) executando a ferramenta de teste. Os workers especializados entram nas Fases 3A–3C; até lá, uma ferramenta real habilitada numa fila sem worker ficaria presa e seria devolvida pela varredura de jobs presos.
+
 Os workers **não escrevem no banco diretamente**: ao terminar, publicam o resultado e a API/um callback interno confirma ou devolve a ficha. Exceção aceitável (decisão da Fase 2): workers *light/media/ai* podem atualizar `processing_jobs` via função de serviço compartilhada, desde que a operação de ficha passe sempre pelo mesmo serviço transacional. O `worker-download` nunca acessa o banco.
 
 ## 3. Por que cada tecnologia
