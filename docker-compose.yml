@@ -15,6 +15,7 @@ x-backend-env: &backend-env
   STORAGE_LOCAL_ROOT: /data/storage
   EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
 
 services:
   db:
