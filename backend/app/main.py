@@ -55,7 +55,8 @@ async def validation_handler(request: Request, exc: RequestValidationError) -> J
         response = JSONResponse(
             status_code=422,
             content={"error": {"code": "validation_error", "message": "Dados inválidos.",
-                               "details": exc.errors(include_input=False, include_url=False)}},
+                               "details": [{k: v for k, v in e.items() if k in ("loc", "msg", "type")}
+                                           for e in exc.errors()]}},
         )
     return response
 
