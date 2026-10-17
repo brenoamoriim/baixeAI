@@ -1,23 +1,49 @@
 # Secrets
 .env
 *.env
+.env.*
 !.env.example
 cookies.txt
 *.pem
 *.key
+*.p12
+*.pfx
+secrets/
 
 # Dependencies / builds
 node_modules/
 .next/
+out/
+dist/
+build/
 __pycache__/
 *.pyc
 .venv/
 venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage/
+htmlcov/
 
 # User files / local data
 storage/
+backups/
 *.db
+*.sqlite
 *.sqlite3
+*.dump
+
+# AI model weights (downloaded at build/runtime, never versioned)
+models_cache/
+*.onnx
+*.pth
+*.ckpt
 
 # Logs
 *.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
