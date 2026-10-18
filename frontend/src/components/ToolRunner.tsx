@@ -12,13 +12,15 @@ type Props = {
   /** Cost shown before confirming. The backend recomputes and charges; this is display only. */
   displayCost: number;
   buildOptions: () => Record<string, unknown> | null;
+  /** Called once when the job finishes successfully (e.g. to show a preview). */
+  onCompleted?: (job: Job) => void;
   children: ReactNode;
 };
 
 const POLL_MS = 1000;
 
 /** Generic tool flow: confirm cost → create job (idempotent) → poll real status → download. */
-export function ToolRunner({ toolId, inputFormat, outputFormat, displayCost, buildOptions, children }: Props) {
+export function ToolRunner({ toolId, inputFormat, outputFormat, displayCost, buildOptions, onCompleted, children }: Props) {
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,6 +31,7 @@ export function ToolRunner({ toolId, inputFormat, outputFormat, displayCost, bui
     for (;;) {
       const current = await api<Job>(`/jobs/${id}`);
       setJob(current);
+      if (current.status === "completed") onCompleted?.(current);
       if (current.status !== "queued" && current.status !== "processing") return;
       await new Promise((resolve) => setTimeout(resolve, POLL_MS));
     }

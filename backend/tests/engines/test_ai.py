@@ -159,3 +159,31 @@ def test_mask_must_match_image_size(client):
     mk = _upload(client, "m.png", _png(small))
     r = _job(client, "object_remover", up, "png", mask_upload_id=mk["id"], accept_rights=True)
     assert r.status_code == 400 and r.json()["error"]["code"] == "invalid_mask" and _credits(client) == 5
+
+
+def _rotated_jpeg() -> bytes:
+    """640x480 stored pixels with EXIF orientation 6 (phone portrait) + a GPS tag."""
+    image, _ = verify.square_scene()
+    exif = Image.Exif()
+    exif[0x0112] = 6  # Orientation: rotate 90 CW when displayed
+    exif[0x8825] = {2: (23.0, 33.0, 0.0)}  # GPSInfo (latitude) - must not survive
+    buf = io.BytesIO()
+    image.save(buf, "JPEG", quality=95, exif=exif)
+    return buf.getvalue()
+
+
+@ai
+def test_exif_rotated_photo_with_browser_oriented_mask(client):
+    client.login(make_user().email)
+    up = _upload(client, "celular.jpg", _rotated_jpeg())
+    assert (up["info"]["width"], up["info"]["height"]) == (640, 480)  # raw stored size
+    mask = Image.new("RGB", (480, 640), "black")  # what the browser shows: portrait
+    ImageDraw.Draw(mask).rectangle((150, 250, 300, 380), fill="white")
+    mk = _upload(client, "m.png", _png(mask))
+    job = _job(client, "object_remover", up, "jpg", mask_upload_id=mk["id"], accept_rights=True).json()
+    assert job["status"] == "completed", job
+    link = client.post(f"/api/v1/jobs/{job['id']}/download-link").json()["url"]
+    with Image.open(io.BytesIO(client.get(link).content)) as out:
+        assert out.size == (480, 640)  # upright, like the user saw it
+        exif = out.getexif()
+        assert 0x8825 not in exif and exif.get(0x0112) in (None, 1)  # GPS and rotation tag stripped

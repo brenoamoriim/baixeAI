@@ -8,6 +8,8 @@ import { Alert, Badge } from "./ui";
 
 const TOOL_PAGES: Record<string, { href: string; label: string }> = {
   converter: { href: "/conversores", label: "Abrir conversores" },
+  background_remover: { href: "/removedor-de-fundo", label: "Abrir removedor de fundo" },
+  object_remover: { href: "/remover-objeto", label: "Abrir removedor de objetos" },
   echo: { href: "/ferramentas/eco", label: "Abrir ferramenta de teste" },
 };
 

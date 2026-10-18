@@ -113,7 +113,10 @@ class ObjectRemoverHandler(ToolHandler):
             raise AppError("Desenhe a área a remover.", code="mask_required")
         if mask_meta.get("format") != "png":
             raise AppError("Máscara inválida.", code="invalid_mask")
-        if (mask_meta.get("width"), mask_meta.get("height")) != (upload_meta.get("width"), upload_meta.get("height")):
+        size = (upload_meta.get("width"), upload_meta.get("height"))
+        mask_size = (mask_meta.get("width"), mask_meta.get("height"))
+        # Phone photos carry EXIF rotation: browsers show them rotated, so the mask may be (h, w).
+        if mask_size not in (size, size[::-1]):
             raise AppError("A máscara não corresponde ao tamanho da imagem.", code="invalid_mask")
         return {"mask_expand": expand}
 
