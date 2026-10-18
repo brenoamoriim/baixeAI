@@ -480,6 +480,23 @@ def expire_due_buckets(db_factory, at: datetime | None = None) -> int:
     return count
 
 
+# --------------------------------------------------------------------------- refunds / chargebacks
+
+
+def revoke_bucket(db: Session, bucket: CreditBucket, *, reason: str, payment_id: uuid.UUID | None = None,
+                  actor: str = "system", amount: int | None = None) -> int:
+    """Compensating entry (never edits history): remove up to `amount` available credits (default:
+    all). Credits already spent stay spent; the caller audits the shortfall. Returns removed amount."""
+    take = bucket.available if amount is None else min(amount, bucket.available)
+    if take > 0:
+        bucket.available -= take
+        _ledger(db, bucket, "revoke", -take, 0, reason, payment_id=payment_id, actor=actor)
+    if amount is None and bucket.reserved == 0:
+        bucket.status = "revoked"
+    db.flush()
+    return take
+
+
 # --------------------------------------------------------------------------- reads
 
 

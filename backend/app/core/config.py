@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     # Dev: Next.js rewrite (1). Production with Caddy -> Next -> API: set accordingly.
     trusted_proxy_hops: int = 0
 
+    # Mercado Pago (TEST credentials outside production). Empty = payments disabled (no fake checkout).
+    mp_access_token: str = ""
+    mp_webhook_secret: str = ""
+    mp_webhook_tolerance_seconds: int = 300
+    # Public base URL Mercado Pago can reach for webhooks (a tunnel in development).
+    api_public_url: str = ""
+
     # Hard cap on any upload request body, checked from Content-Length before reading it.
     max_upload_body_bytes: int = 96 * 1024 * 1024
 

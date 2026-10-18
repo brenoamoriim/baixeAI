@@ -24,7 +24,10 @@ DEFAULTS: dict[str, tuple[Any, str]] = {
     "compensation_validity_hours": (24, "Validade da ficha devolvida após o vencimento do bucket"),
     "lifetime_max_concurrent_jobs": (2, "Vitalício: jobs simultâneos"),
     "lifetime_daily_cap": (50, "Vitalício: operações por dia"),
-    "lifetime_max_seats": (None, "Vitalício: vagas do lote (None = sem venda definida)"),
+    "lifetime_max_seats": (50, "Vitalício: vagas do lote (decisão 18/10/2026)"),
+    "card_grace_days": (3, "Assinatura no cartão: dias de tolerância após falha na renovação"),
+    "refund_window_days": (7, "Reembolso: prazo em dias após a aprovação (D5)"),
+    "renewal_reminder_days": (3, "Renovação manual (Pix/débito): lembrete X dias antes do fim do ciclo"),
     "max_pending_jobs_per_user": (5, "Jobs em fila/processamento por usuário (não vitalício)"),
     "job_stuck_after_seconds": (1800, "Job sem conclusão após este tempo é considerado preso"),
     "limits_bytes": (

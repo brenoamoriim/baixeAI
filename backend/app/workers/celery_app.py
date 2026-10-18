@@ -20,6 +20,8 @@ celery.conf.update(
         "cleanup-expired-outputs": {"task": "maintenance.cleanup_outputs", "schedule": 600.0},
         "cleanup-expired-uploads": {"task": "maintenance.cleanup_uploads", "schedule": 600.0},
         "ledger-reconciliation": {"task": "maintenance.ledger_reconciliation", "schedule": 86400.0},
+        "payments-reconcile": {"task": "maintenance.payments_reconcile", "schedule": 600.0},
+        "subscriptions": {"task": "maintenance.subscriptions", "schedule": 3600.0},
     },
 )
 app = celery

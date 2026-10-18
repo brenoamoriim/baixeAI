@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.api.middleware import SecurityMiddleware
-from app.api.v1 import admin, auth, downloads, jobs, me, tools, uploads
+from app.api.v1 import admin, auth, downloads, jobs, me, payments, tools, uploads
 from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.core.errors import AppError
@@ -91,5 +91,6 @@ def readyz() -> JSONResponse:
 
 
 for router in (auth.router, me.router, tools.router, uploads.router, downloads.router, jobs.router, admin.router,
-               downloads.admin_router):
+               downloads.admin_router, payments.router):
     app.include_router(router, prefix="/api/v1")
+app.include_router(payments.webhook_router)

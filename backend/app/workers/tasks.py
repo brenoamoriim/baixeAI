@@ -1,6 +1,7 @@
 import logging
 import uuid
 
+from app.core import clock
 from app.core.db import SessionLocal
 from app.services import credits, downloads, jobs, uploads
 from app.workers.celery_app import celery
@@ -64,6 +65,86 @@ def jobs_mark_processing(job_id: str) -> None:
 def jobs_finish_remote(job_id: str, result: dict) -> None:
     with SessionLocal() as db:
         jobs.finish_remote(db, uuid.UUID(job_id), result)
+
+
+# ---- payments (default worker) ----
+
+
+def _process_event(event_id: int) -> str:
+    from app.models import PaymentEvent
+    from app.payments import get_provider
+    from app.services import payments
+
+    with SessionLocal() as db:
+        event = db.get(PaymentEvent, event_id)
+        if event is None or event.processed_at is not None:
+            return "skip"
+        topic, resource = event.topic, event.resource_id
+        db.commit()
+        provider = get_provider()
+        try:
+            if topic == "payment":
+                outcome = payments.apply_payment(db, provider.get_payment(resource))
+            elif topic == "subscription_authorized_payment":
+                charge = provider.get_subscription_charge(resource)
+                outcome = payments.apply_payment(db, charge) if charge else "charge_not_ready"
+            elif topic == "subscription_preapproval":
+                outcome = payments.apply_subscription(db, provider.get_subscription(resource))
+            else:
+                outcome = "ignored_topic"
+        except Exception as exc:  # noqa: BLE001 - retried by reconciliation
+            with db.begin():
+                row = db.get(PaymentEvent, event_id, with_for_update=True)
+                row.attempts += 1
+                row.last_error = f"{type(exc).__name__}: {exc}"[:500]
+            log.exception("payment event failed", extra={"event_id": event_id})
+            return "error"
+        with db.begin():
+            row = db.get(PaymentEvent, event_id, with_for_update=True)
+            row.attempts += 1
+            if outcome != "charge_not_ready":
+                row.processed_at = clock.now()
+        return outcome
+
+
+@celery.task(name="payments.process_event")
+def process_payment_event(event_id: int) -> str:
+    return _process_event(event_id)
+
+
+@celery.task(name="maintenance.payments_reconcile")
+def payments_reconcile() -> dict:
+    from sqlalchemy import select
+
+    from app.models import PaymentEvent
+    from app.payments import PaymentsUnavailable, get_provider
+    from app.services import payments
+
+    try:
+        provider = get_provider()
+    except PaymentsUnavailable:
+        return {"skipped": "payments not configured"}
+    with SessionLocal() as db:
+        pending = db.execute(select(PaymentEvent.id).where(
+            PaymentEvent.signature_valid.is_(True), PaymentEvent.processed_at.is_(None),
+            PaymentEvent.attempts < 10)).scalars().all()
+    for event_id in pending:
+        _process_event(event_id)
+    result = payments.reconcile(SessionLocal, provider)
+    result["events_retried"] = len(pending)
+    return result
+
+
+@celery.task(name="maintenance.subscriptions")
+def subscriptions_maintenance() -> dict:
+    from app.payments import PaymentsUnavailable, get_provider
+    from app.services import payments
+
+    try:
+        provider = get_provider()
+    except PaymentsUnavailable:
+        provider = None
+    return payments.subscription_maintenance(SessionLocal, provider)
 
 
 @celery.task(name="uploads.probe", soft_time_limit=90, time_limit=120)
