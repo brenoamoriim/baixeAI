@@ -35,8 +35,14 @@ PASSWORD = "senha-forte-123"
 _PASSWORD_HASH = hash_password(PASSWORD)
 
 
+NO_DB = os.environ.get("TESTS_NO_DB") == "1"  # worker-download has no database by design
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _schema():
+    if NO_DB:
+        yield
+        return
     cfg = Config("alembic.ini")
     cfg.attributes["database_url"] = os.environ["DATABASE_URL"]
     command.downgrade(cfg, "base")
@@ -47,6 +53,9 @@ def _schema():
 
 @pytest.fixture(autouse=True)
 def _clean_state():
+    if NO_DB:
+        yield
+        return
     tables = ", ".join(t.name for t in reversed(Base.metadata.sorted_tables))
     with engine.begin() as conn:
         # Test-only: replica role skips the append-only triggers so tables can be reset.

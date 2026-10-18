@@ -46,7 +46,7 @@ services:
       retries: 20
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_dev_only}
-    networks: [internal]
+    networks: [internal, dlnet]
 
   migrate:
     build: { context: ./backend, target: dev }
@@ -137,6 +137,43 @@ services:
       redis: { condition: service_healthy }
     networks: [internal]
 
+  # Only route to the internet for downloads. Re-checks every destination (SSRF) and dials the
+  # validated IP. Not reachable from the internal network, only from dlnet.
+  egress-proxy:
+    build: { context: ./backend, target: dev }
+    command: ["python", "-m", "app.security.egress_proxy"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    networks: [dlnet, egress]
+
+  # yt-dlp worker: no DATABASE_URL, no route to Postgres, no direct internet.
+  worker-download:
+    build: { context: ./backend, target: worker-download }
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_dev_only}@redis:6379/0
+      STORAGE_LOCAL_ROOT: /data/storage
+      EGRESS_PROXY_URL: http://egress-proxy:3128
+      HOME: /tmp
+    volumes:
+      - ./backend:/app
+      - storage:/data/storage
+    tmpfs:
+      - /tmp:size=2g,mode=1777
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1g
+    pids_limit: 128
+    depends_on:
+      redis: { condition: service_healthy }
+      egress-proxy: { condition: service_started }
+    networks: [dlnet]
+
   beat:
     build: { context: ./backend, target: dev }
     command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
@@ -174,7 +211,10 @@ services:
 networks:
   internal:
     internal: true
+  dlnet:
+    internal: true
   edge: {}
+  egress: {}
 
 volumes:
   pgdata:

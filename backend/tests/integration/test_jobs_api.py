@@ -272,4 +272,8 @@ def test_tools_listing_exposes_only_available(client):
     for tool_id in ("background_remover", "object_remover"):
         exposed = {f"{tool_id}:{c['input']}->{c['output']}" for c in tools[tool_id]["capabilities"]}
         assert exposed == {k for k in ai_verified() if k.startswith(f"{tool_id}:")} and exposed
-    assert tools["video_downloader"]["status"] == "coming_soon" and tools["video_downloader"]["capabilities"] == []
+    # Phase 3C: downloader exposes what the real integration check (downloader/verified.json) passed
+    from app.tools.downloader.verify import verified_keys as dl_verified
+
+    exposed = {f"{c['input']}->{c['output']}" for c in tools["video_downloader"]["capabilities"]}
+    assert exposed == dl_verified() and exposed

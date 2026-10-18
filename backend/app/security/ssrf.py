@@ -6,6 +6,7 @@ resolved IP, so redirects and DNS rebinding cannot reach internal addresses.
 """
 
 import ipaddress
+import os
 import socket
 from dataclasses import dataclass
 from urllib.parse import urlsplit
@@ -57,8 +58,18 @@ def resolve(host: str, port: int) -> tuple[str, ...]:
     return tuple(dict.fromkeys(info[4][0] for info in infos))
 
 
+def test_allowlist() -> set[str]:
+    """Hosts allowed to be private ONLY in automated tests (local fixture server).
+    Ignored unless APP_ENV=test; a test asserts it is ignored in production."""
+    if os.environ.get("APP_ENV") != "test":
+        return set()
+    return {h.strip().lower() for h in os.environ.get("EGRESS_TEST_ALLOW_PRIVATE", "").split(",") if h.strip()}
+
+
 def check_host(host: str, port: int) -> tuple[str, ...]:
     """Resolve and require that EVERY address is public (no mixed answers)."""
+    if host.lower() in test_allowlist():
+        return resolve(host, port)
     if port not in ALLOWED_PORTS:
         raise UnsafeUrl("port_not_allowed", "Endereço não permitido.")
     if host.lower() in ("localhost", "localhost.localdomain") or host.lower().endswith(".localhost"):

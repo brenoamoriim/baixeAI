@@ -5,12 +5,14 @@ from app.core.config import get_settings
 from app.tools.ai.handlers import BackgroundRemoverHandler, ObjectRemoverHandler
 from app.tools.base import ToolHandler
 from app.tools.converter.handler import ConverterHandler
+from app.tools.downloader.handler import VideoDownloaderHandler
 from app.tools.echo.handler import EchoHandler
 
 
 def _build() -> dict[str, ToolHandler]:
     handlers: list[ToolHandler] = [
         EchoHandler(), ConverterHandler(), BackgroundRemoverHandler(), ObjectRemoverHandler(),
+        VideoDownloaderHandler(),
     ]
     production = get_settings().is_production
     return {h.tool_id: h for h in handlers if not (h.dev_only and production)}

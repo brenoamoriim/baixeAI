@@ -1,0 +1,2 @@
+# worker-download only. Install with: pip install -r requirements-download.txt -c constraints.txt
+yt-dlp[default,deno]==2026.8.19

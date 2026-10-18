@@ -31,7 +31,7 @@ from app.models import (
     UsageRecord,
 )
 from app.security.crypto import keyed_hash
-from app.services import credits, guests, uploads
+from app.services import credits, downloads, guests, uploads
 from app.services.settings import get_setting
 from app.storage.base import get_storage, new_key
 from app.tools.base import ToolSystemError, ToolUserError
@@ -131,8 +131,20 @@ def prepare(db: Session, actor: Actor, tool_id: str, input_format: str, output_f
     tool, capability = available_capability(db, tool_id, input_format, output_format)
     handler = get_handler(tool_id)
     upload = None
+    inspection = None
     extra_meta: dict[str, dict] = {}
     extra_keys: dict[str, str] = {}
+    if getattr(handler, "requires_inspection", False):
+        try:
+            inspection_id = uuid.UUID(str(options.get("inspection_id")))
+        except ValueError:
+            raise AppError("Cole o link do vídeo primeiro.", code="inspection_required") from None
+        inspection = downloads.get_owned(db, actor, inspection_id)
+        if inspection.status == "probing":
+            raise AppError("Ainda consultando o link. Aguarde.", code="inspection_not_ready")
+        if inspection.status != "ready":
+            raise AppError(inspection.error_message or "Link recusado.",
+                           code=inspection.error_code or "inspection_rejected")
     if handler.requires_upload:
         upload = _ready_upload(db, actor, options.get("upload_id"))
         if upload.format != input_format:
@@ -146,7 +158,7 @@ def prepare(db: Session, actor: Actor, tool_id: str, input_format: str, output_f
     terms = getattr(handler, "required_terms", None)
     if terms and not for_estimate and options.get("accept_rights") is not True:
         raise AppError("Confirme que você tem direito de editar esta imagem.", code="rights_not_accepted")
-    upload_meta = {**upload.meta, "extra": extra_meta} if upload else None
+    upload_meta = {**upload.meta, "extra": extra_meta} if upload else (inspection.meta if inspection else None)
     if for_estimate and getattr(handler, "extra_uploads", ()):
         options = {**options, "accept_rights": True}  # estimate: price only, terms checked on create
         if not extra_meta:
@@ -162,6 +174,10 @@ def prepare(db: Session, actor: Actor, tool_id: str, input_format: str, output_f
         prepared.input_meta = {**upload.meta, "original_name": upload.original_name,
                                "format": upload.format, "size_bytes": upload.size_bytes,
                                "extra_keys": extra_keys}
+    if inspection is not None:
+        prepared.input_meta = {**inspection.meta, "url": inspection.url, "domain": inspection.domain,
+                               "original_name": f"{inspection.meta.get('title', 'video')}.x",
+                               "limits": downloads.limits(db)}
     prepared.terms = terms
     return prepared
 
@@ -319,11 +335,22 @@ def _create_for_guest(db, actor, p: Prepared, key, at):
     return job, True
 
 
-def dispatch(db: Session, job: ProcessingJob) -> None:
-    from app.workers.tasks import run_job
+def _remote_args(db: Session, job: ProcessingJob) -> list:
+    capability = db.get(ToolCapability, job.capability_id)
+    meta = job.input_meta
+    return [str(job.id), meta["url"], capability.output_format, job.options.get("quality", "best"),
+            meta["limits"], meta.get("original_name", "video.x"), meta.get("domain", "")]
 
+
+def dispatch(db: Session, job: ProcessingJob) -> None:
+    from app.workers.tasks import download_fetch, run_job
+
+    handler = get_handler(job.tool_id)
     try:
-        result = run_job.apply_async(args=[str(job.id)], queue=job.queue)
+        if getattr(handler, "remote_queue", None):
+            result = download_fetch.apply_async(args=_remote_args(db, job), queue=handler.remote_queue)
+        else:
+            result = run_job.apply_async(args=[str(job.id)], queue=job.queue)
     except Exception:
         log.exception("enqueue failed", extra={"job_id": str(job.id)})
         fail_job(db, job.id, error_class="system", error_code="enqueue_failed")
@@ -470,6 +497,28 @@ def _settle(db: Session, job: ProcessingJob, at: datetime, *, refund: bool) -> N
             guests.release(db, job.guest_allowance_id, job.id)
         else:
             guests.commit(db, job.guest_allowance_id, job.id, at)
+
+
+def mark_processing(db: Session, job_id: uuid.UUID) -> None:
+    with db.begin():
+        job = db.get(ProcessingJob, job_id, with_for_update=True)
+        if job is not None and job.status == "queued":
+            job.status = "processing"
+            job.started_at = clock.now()
+
+
+def finish_remote(db: Session, job_id: uuid.UUID, result: dict) -> None:
+    """Apply worker-download's outcome: commit on success, refund on system failure/timeout."""
+    mark_processing(db, job_id)
+    if result.get("ok"):
+        complete_job(db, job_id, output_key=result["key"], filename=result["filename"])
+    else:
+        fail_job(db, job_id, error_class=result.get("error_class", "system"),
+                 error_code=result.get("error_code", "extractor_failed"))
+    job = db.get(ProcessingJob, job_id)
+    if job is not None:
+        downloads.record_stat(job.input_meta.get("domain", "?"), "fetch",
+                              "ok" if result.get("ok") else result.get("error_code", "failed"))
 
 
 # --------------------------------------------------------------------------- maintenance

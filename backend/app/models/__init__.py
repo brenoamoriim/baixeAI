@@ -16,6 +16,7 @@ from app.models.credits import (
     CreditReservationItem,
     GuestAllowance,
 )
+from app.models.downloads import UrlInspection
 from app.models.identity import EmailToken, TermsAcceptance, User, UserSession
 from app.models.jobs import AuditEvent, ProcessingJob, UsageRecord
 from app.models.uploads import Upload
@@ -44,6 +45,7 @@ __all__ = [
     "ToolDefinition",
     "UsageRecord",
     "Upload",
+    "UrlInspection",
     "User",
     "UserSession",
 ]

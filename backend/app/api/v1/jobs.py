@@ -55,12 +55,23 @@ def _load_owned(db: Session, job_id: uuid.UUID, actor: Actor) -> ProcessingJob:
     return job
 
 
+def _live_progress(job: ProcessingJob) -> int:
+    """Real progress reported by worker-download (Redis) while the job runs."""
+    if job.status == "processing":
+        from app.services.downloads import get_progress
+
+        live = get_progress(str(job.id))
+        if live is not None:
+            return live
+    return job.progress
+
+
 def _serialize(job: ProcessingJob) -> dict:
     return {
         "id": str(job.id),
         "tool_id": job.tool_id,
         "status": job.status,
-        "progress": job.progress,
+        "progress": _live_progress(job),
         "credit_cost": job.credit_cost,
         "charged_from": job.charged_from,
         "error_code": job.error_code,

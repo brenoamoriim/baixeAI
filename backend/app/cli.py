@@ -87,6 +87,7 @@ def seed() -> None:
             ])
         _sync_converter_capabilities(db)
         _sync_ai_capabilities(db)
+        _sync_downloader_capabilities(db)
         if not get_settings().is_production:
             _insert_missing(db, ToolDefinition, [DEV_TOOL], "id")
             db.execute(
@@ -128,6 +129,22 @@ def _sync_ai_capabilities(db) -> None:
             pg_insert(ToolCapability)
             .values(id=uuid.uuid4(), tool_id=c.tool_id, category="image", input_format=c.input_format,
                     output_format=c.output_format, status=status, engine=engine[c.tool_id], options_schema={})
+            .on_conflict_do_update(constraint="uq_tool_capabilities_io", set_={"status": status})
+        )
+
+
+def _sync_downloader_capabilities(db) -> None:
+    """`available` only if the real integration check (downloader/verified.json) passed."""
+    from app.tools.downloader import verify as dl_verify
+
+    verified = dl_verify.verified_keys()
+    for key in dl_verify.CAPABILITIES:
+        output = key.split("->")[1]
+        status = "available" if key in verified else "planned"
+        db.execute(
+            pg_insert(ToolCapability)
+            .values(id=uuid.uuid4(), tool_id="video_downloader", category="video", input_format="url",
+                    output_format=output, status=status, engine="yt-dlp", options_schema={})
             .on_conflict_do_update(constraint="uq_tool_capabilities_io", set_={"status": status})
         )
 

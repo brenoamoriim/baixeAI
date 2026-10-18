@@ -12,6 +12,7 @@ Ports 80/443 only. One request per plain-HTTP connection (Connection: close).
 """
 
 import asyncio
+import contextlib
 import logging
 import os
 from urllib.parse import urlsplit
@@ -26,16 +27,10 @@ MAX_CONNECTIONS = int(os.environ.get("EGRESS_MAX_CONNECTIONS", "64"))
 _slots = asyncio.Semaphore(MAX_CONNECTIONS)
 
 
-def _test_allowlist() -> set[str]:
-    """Hosts allowed to be private ONLY in automated tests (never honoured in production)."""
-    if os.environ.get("APP_ENV") != "test":
-        return set()
-    return {h.strip().lower() for h in os.environ.get("EGRESS_TEST_ALLOW_PRIVATE", "").split(",") if h.strip()}
+_test_allowlist = ssrf.test_allowlist
 
 
 def pick_address(host: str, port: int) -> str:
-    if host.lower() in _test_allowlist():
-        return ssrf.resolve(host, port)[0]
     return ssrf.check_host(host, port)[0]
 
 
@@ -47,10 +42,8 @@ async def _pipe(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> N
     except (TimeoutError, ConnectionError, asyncio.IncompleteReadError):
         pass
     finally:
-        try:
+        with contextlib.suppress(Exception):
             writer.close()
-        except Exception:  # noqa: BLE001
-            pass
 
 
 async def _reply(writer: asyncio.StreamWriter, status: str) -> None:
@@ -104,8 +97,12 @@ async def handle(client_reader: asyncio.StreamReader, client_writer: asyncio.Str
                 upstream_writer.write(request.encode("latin-1"))
                 await upstream_writer.drain()
         except ssrf.UnsafeUrl as exc:
-            log.warning("blocked", extra={"host": target[:200], "reason": exc.code})
-            await _reply(client_writer, "403 Forbidden")
+            if exc.code == "dns_failed":
+                log.warning("dns failed: %s", target[:200])
+                await _reply(client_writer, "502 Bad Gateway")
+            else:
+                log.warning("blocked %s: %s", exc.code, target[:200])
+                await _reply(client_writer, "403 Blocked By Egress Policy")
             return
         except (ValueError, OSError, TimeoutError):
             await _reply(client_writer, "502 Bad Gateway")

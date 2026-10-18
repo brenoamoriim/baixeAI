@@ -84,3 +84,15 @@ RUN mkdir -p /data/storage && chown -R app:app /data
 ENV AI_MODEL_DIR=/opt/models AI_THREADS=2
 USER app
 CMD ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "ai", "--loglevel=INFO", "--concurrency=1"]
+
+# ---- worker-download: yt-dlp + FFmpeg. NO database, NO direct internet ----------------
+# Its only network is `dlnet` (Redis + egress proxy). Every outbound request goes through the
+# egress proxy, which enforces the SSRF rules per connection.
+FROM base AS worker-download
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+COPY requirements-download.txt requirements-dev.txt ./
+RUN pip install -r requirements-download.txt -r requirements-dev.txt -c constraints.txt
+COPY . .
+RUN mkdir -p /data/storage && chown -R app:app /data
+USER app
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "download", "--loglevel=INFO", "--concurrency=2"]

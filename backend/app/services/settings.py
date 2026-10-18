@@ -41,6 +41,8 @@ DEFAULTS: dict[str, tuple[Any, str]] = {
     "audio_max_seconds": (3600, "Duração máxima de áudio (segundos)"),
     "image_max_pixels": (40_000_000, "Resolução máxima de imagem (pixels)"),
     "doc_max_pages": (300, "Máximo de páginas de PDF"),
+    "download_max_bytes": (300 * 1024 * 1024, "Baixador: tamanho máximo do arquivo"),
+    "download_max_seconds": (20 * 60, "Baixador: duração máxima do vídeo (segundos)"),
 }
 
 
