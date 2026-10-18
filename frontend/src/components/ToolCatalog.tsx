@@ -7,6 +7,7 @@ import { pluralFichas } from "@/lib/format";
 import { Alert, Badge } from "./ui";
 
 const TOOL_PAGES: Record<string, { href: string; label: string }> = {
+  video_downloader: { href: "/baixar-videos", label: "Abrir baixador de vídeos" },
   converter: { href: "/conversores", label: "Abrir conversores" },
   background_remover: { href: "/removedor-de-fundo", label: "Abrir removedor de fundo" },
   object_remover: { href: "/remover-objeto", label: "Abrir removedor de objetos" },
