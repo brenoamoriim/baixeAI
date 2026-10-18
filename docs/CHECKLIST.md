@@ -1,6 +1,6 @@
 # BaixeAI — Checklist do projeto
 
-> Memória do projeto entre sessões. Atualizado a cada entrega. Última atualização: **18/10/2026** (Fase 3B).
+> Memória do projeto entre sessões. Atualizado a cada entrega. Última atualização: **18/10/2026** (Fase 3C).
 
 Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 
@@ -66,11 +66,21 @@ Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 - [ ] Termos do dataset Places2 (treino do LaMa): NÃO VERIFICADO
 - [ ] Qualidade em fotos reais (cabelo, objetos grandes): avaliada só com imagens sintéticas nos testes automáticos
 
-## Fase 3C — Baixador de vídeos
-- [ ] Adaptador `VideoExtractor` (yt-dlp)
-- [ ] SSRF completo + isolamento de rede do worker
-- [ ] Aceite de direitos
-- [ ] Testes SSRF + integração
+## Fase 3C — Baixador de vídeos (`phase-3c-baixador`) — ✅ concluída, aguardando aprovação
+
+- [x] `VideoExtractor` + implementação yt-dlp 2026.8.19 (Unlicense), API Python, sem shell/cookies/login/playlists/ao vivo
+- [x] SSRF completo: validação na API + **proxy de egresso próprio** que revalida cada conexão e disca o IP validado (redirects, URLs de mídia, DNS rebinding)
+- [x] `worker-download` isolado: sem banco, sem internet direta, sem segredos; resultado volta por tarefas no worker padrão (testado de dentro do contêiner)
+- [x] Fluxo: consulta gratuita → opções reais → custo (D1 por duração real) → aceite de direitos registrado → job → progresso real → link assinado
+- [x] Links diretos medidos com ffprobe via proxy; duração desconhecida → recusado (sem inventar preço)
+- [x] Erros honestos e classificados (privado, login, DRM, indisponível, bloqueio da plataforma, endereço proibido…)
+- [x] Taxa de sucesso por domínio (sem dados pessoais) em `GET /api/v1/admin/download-stats`
+- [x] Integração real: URLs de domínio público da NASA no Wikimedia Commons, 3/3 (MP4 480p, M4A, MP3) pela internet via proxy
+- [x] Testes: API 178 passed (inclui 39 de SSRF/proxy e 15 de orquestração); worker-download 63 passed (24 do extrator com yt-dlp real e isolamento de rede + 39 de SSRF/proxy); worker-light 120, worker-media 116, worker-ai 47, frontend 17
+- [x] Riscos registrados sem rodeios em `architecture/12` §4
+- [ ] Taxa de sucesso a partir de IP de datacenter (Oracle) → medir na Fase 6
+- [ ] Revisão jurídica do aviso de direitos e canal de remoção → Fase 5/6
+- [ ] ACL do Redis para o `worker-download` → Fase 6
 
 ## Fase 4 — Monetização
 - [ ] `PaymentProvider` + Mercado Pago (Checkout Pro + `/preapproval` cartão + renovação manual)

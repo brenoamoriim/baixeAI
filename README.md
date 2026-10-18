@@ -3,8 +3,9 @@
 Plataforma web brasileira de utilitários online (freemium, moeda interna "ficha"):
 baixador de vídeos, conversores, removedor de fundo e removedor de objetos.
 
-> **Estado atual:** Fase 3B — **Conversores** (174 combinações), **Removedor de fundo** e **Removedor de objetos**
-> (modelos de IA locais em CPU) disponíveis. O baixador de vídeos ainda aparece como "Em breve".
+> **Estado atual:** Fase 3C — as 4 ferramentas funcionam: **Conversores** (174 combinações), **Removedor de fundo**,
+> **Removedor de objetos** e **Baixador de vídeos** (conteúdo público; ver riscos em `docs/architecture/12` §4).
+> Pagamentos ainda não existem (Fase 4).
 > Veja [`docs/CHECKLIST.md`](docs/CHECKLIST.md) para o progresso.
 
 ## Rodar tudo (Windows 11 + Docker Desktop, PowerShell)
@@ -14,7 +15,8 @@ docker compose up --build
 ```
 
 Isso sobe: `db` (PostgreSQL), `redis`, `migrate` (aplica migrações + seed e encerra), `api`
-(FastAPI), `worker`, `worker-light` (LibreOffice/libvips), `worker-media` (FFmpeg), `worker-ai` (modelos de IA, ~370 MB baixados no build), `beat`
+(FastAPI), `worker`, `worker-light` (LibreOffice/libvips), `worker-media` (FFmpeg), `worker-ai` (modelos de IA, ~370 MB baixados no build), `worker-download` (yt-dlp, sem banco e sem internet direta),
+`egress-proxy` (única saída para a internet, com regras anti-SSRF), `beat`
 (Celery), `frontend` (Next.js) e `proxy` (Caddy). A primeira construção demora (baixa LibreOffice e FFmpeg).
 
 | O quê | Endereço |
@@ -63,6 +65,7 @@ docker compose run --rm --build migrate pytest
 docker compose run --rm --build --no-deps worker-light pytest tests/engines -o addopts=""
 docker compose run --rm --build --no-deps worker-media pytest tests/engines -o addopts=""
 docker compose run --rm --build --no-deps worker-ai pytest tests/engines/test_ai.py -o addopts=""
+docker compose run --rm --build -e TESTS_NO_DB=1 worker-download pytest tests/engines/test_downloader.py tests/unit/test_ssrf.py -o addopts=""
 
 # frontend
 cd frontend; npm ci; npm test; npm run lint; npm run typecheck
@@ -79,6 +82,16 @@ docker compose run --rm --no-deps worker-media python -m app.tools.converter.ver
 docker compose run --rm --no-deps worker-ai python -m app.tools.ai.verify   # IA: fundo e objetos
 docker compose run --rm migrate python -m app.cli seed   # aplica o resultado ao banco
 ```
+
+### Atualizar o extrator de vídeos (yt-dlp)
+
+As plataformas mudam e o yt-dlp precisa acompanhar. Procedimento:
+
+1. Veja a versão estável mais recente: https://pypi.org/project/yt-dlp/
+2. Atualize o pin em `backend/requirements-download.txt` e `backend/constraints.txt` (e `yt-dlp-ejs` se mudar).
+3. `docker compose build worker-download` e rode os testes do download (comando acima).
+4. `docker compose up -d worker-download egress-proxy` e `docker compose exec worker-download python -m app.tools.downloader.verify`.
+5. Acompanhe a taxa de sucesso por domínio em `GET /api/v1/admin/download-stats`.
 
 ## Documentação
 

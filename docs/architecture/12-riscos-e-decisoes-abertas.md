@@ -71,3 +71,19 @@ Pendentes: quantidade de vagas do lote vitalício; provedor de subdomínio gratu
 | D13 | AdSense | Usar em todo o site / só fora do baixador / não usar | Só em páginas sem baixador, ou adiar até ter tráfego e revisar a política |
 | D14 | Hospedagem | Oracle Free / máquina própria | **Oracle Free (São Paulo)**; criar a conta já para garantir capacidade |
 | D15 | CNPJ | PF agora / MEI já | PF no MVP; MEI antes de escalar (Pix Automático, fiscal) |
+
+## 4. Baixador de vídeos — riscos reais (Fase 3C, 18/10/2026)
+
+Sem rodeios: este é o recurso mais arriscado do produto.
+
+| # | Risco | O que significa na prática | O que foi feito / o que resta |
+|---|---|---|---|
+| V1 | **Termos de uso das plataformas** | YouTube, Instagram, TikTok etc. proíbem baixar conteúdo sem autorização nos próprios Termos. Oferecer o baixador "para qualquer plataforma" (decisão do PRD) é, para muitas delas, facilitar uma violação dos termos delas, mesmo quando o usuário declara ter direito | Aceite de direitos obrigatório e registrado; só conteúdo público, sem login/cookies/DRM. **Não elimina o risco** de notificação ou bloqueio. Recomenda-se canal de remoção (contato) e revisão jurídica antes do lançamento |
+| V2 | **Bloqueio de IP de datacenter** | Plataformas grandes bloqueiam ou exigem "prove que não é robô" para IPs de nuvem (a Oracle é nuvem). Em casa (dev) funciona mais; **na Oracle a taxa de sucesso tende a cair — NÃO MEDIDO** | Erro honesto ("a plataforma bloqueou"), ficha devolvida (erro do sistema), estatística por domínio no admin para ver quando acontece. Proxies residenciais custam dinheiro (fora do orçamento zero) |
+| V3 | **O motor quebra quando a plataforma muda** | yt-dlp precisa de atualizações frequentes (o YouTube exige até runtime JavaScript — deno + yt-dlp-ejs) | Procedimento de atualização documentado (README); falhas devolvem a ficha; taxa de sucesso por domínio |
+| V4 | **AdSense** | A política proíbe sites que permitem download não autorizado de conteúdo protegido | D13: sem anúncios nas páginas do baixador. Ainda assim o Google avalia o **site**, não só a página: pode recusar ou suspender a conta inteira |
+| V5 | **Mercado Pago** | Vender acesso a uma ferramenta associada a pirataria pode levar a denúncia/bloqueio da conta (programa de proteção de marca do MP; termos exatos **NÃO VERIFICADO**) | Comunicação do produto como "baixar seus vídeos e conteúdo público autorizado"; revisar termos do MP antes da Fase 4 |
+| V6 | **Hospedagem (Oracle)** | Política de uso aceitável sobre conteúdo infrator (**NÃO VERIFICADO**, página bloqueada); notificações DMCA chegam ao provedor | Backups fora da Oracle; o baixador pode ser desligado sem afetar o resto (`tool_definitions.enabled`; hoje só direto no banco — botão no painel admin na Fase 5) |
+| V7 | **Responsabilidade legal (Brasil)** | Marco Civil/LDA: o declarante assume a responsabilidade, mas a plataforma pode ser acionada | **Exige revisão por advogado** (Termos, aviso de direitos, canal de remoção) |
+
+Recomendação técnica: lançar o baixador **desligável** e monitorar V2/V3 na Oracle real na Fase 6 antes de anunciá-lo como recurso principal.

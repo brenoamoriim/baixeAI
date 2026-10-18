@@ -82,6 +82,30 @@ Atacantes: usuário abusivo (quer fichas grátis), bot (abuso do visitante, scra
 | Privacidade | EXIF/GPS removidos da saída (teste); imagem processada localmente, sem terceiros |
 | Esgotamento de memória | concorrência 1 + `mem_limit 3g`; falha do modelo → erro do sistema → ficha devolvida (teste) |
 
+## 3.4 Controles da Fase 3C (baixador)
+
+```
+API (rede internal)  --valida URL (SSRF)-->  Redis  <--  worker-download (rede dlnet: só Redis + proxy)
+                                                             |
+                                                       egress-proxy (dlnet + egress)
+                                                             | revalida CADA conexão, disca o IP validado
+                                                          internet pública (80/443)
+```
+
+| Controle | Evidência |
+|---|---|
+| Validação na API: esquema http/https, sem credenciais, portas 80/443, DNS com **todos** os IPs públicos (bloqueia loopback, RFC1918, CGNAT, link-local/metadata, ULA, IPv4-mapeado, IP decimal) | `tests/unit/test_ssrf.py` (25 URLs hostis) |
+| Proxy de egresso: revalida cada conexão (redirects, URLs de mídia/segmentos) e conecta no IP validado (anti DNS rebinding) | testes do proxy (rebinding simulado, redirect para IP privado) |
+| `worker-download` sem rota para Postgres, sem internet direta, sem metadata, sem `DATABASE_URL`/segredos no ambiente | testes **de dentro do contêiner** (`tests/engines/test_downloader.py`) |
+| yt-dlp: API Python (sem shell), sem cookies/netrc/config, sem playlists/ao vivo, limites de tamanho e duração, saída conferida pela assinatura real antes da entrega | testes com servidor local + verificação real |
+| Aceite de direitos registrado na mesma transação da cobrança | teste de API |
+
+Riscos residuais:
+- `worker-download` alcança o **Redis** (necessário para a fila). Se um componente ignorasse o proxy e um conteúdo malicioso induzisse uma requisição ao Redis, ele ainda exigiria senha; o Redis também descarta comandos com cara de HTTP. Mitigação extra planejada (Fase 6): usuário ACL do Redis restrito às filas do download.
+- O yt-dlp executa o JavaScript do player do YouTube no **deno** (yt-dlp-ejs) — código de terceiros, isolado pelo sandbox do deno e pelo contêiner sem rede direta.
+- Dependência **mutagen (GPL-2.0+)** carregada pelo yt-dlp no processo: sem distribuição (SaaS), sem obrigação de publicar código; se as imagens forem distribuídas, rever.
+- O proxy de egresso é código próprio (~150 linhas), não um proxy auditado; coberto por testes, sem auditoria externa.
+
 ## 4. Riscos residuais (aceitos e documentados)
 
 1. **Zero-day** em FFmpeg/LibreOffice/libvips: mitigado por isolamento, não eliminado.

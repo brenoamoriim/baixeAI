@@ -209,3 +209,28 @@ Comportamento:
 - rotação EXIF aplicada; **metadados (EXIF/GPS) removidos** da saída (teste);
 - máscara: segundo upload do mesmo dono, PNG, mesmo tamanho da imagem (ou h×w para fotos com EXIF girado);
 - aceite "tenho direito de editar esta imagem" obrigatório na criação do job e gravado em `terms_acceptances` na mesma transação da cobrança. A estimativa de custo não exige o aceite (o custo aparece antes).
+
+## 5. Baixador de vídeos (Fase 3C, 18/10/2026)
+
+| Item | Escolha | Licença |
+|---|---|---|
+| Extrator | yt-dlp 2026.8.19 (`[default,deno]`) atrás de `VideoExtractor` | Unlicense |
+| JS runtime (YouTube) | deno 2.9.7 + yt-dlp-ejs 0.8.0 | MIT / Unlicense+MIT+ISC |
+| Junção/extração | FFmpeg (mesma build do `worker-media`) | GPL (programa separado) |
+| Metadados de áudio | mutagen 1.48.1 (dependência do yt-dlp) | GPL-2.0+ (ver `08` §3.4) |
+
+Capacidades `available` (verificação real `python -m app.tools.downloader.verify`, pela internet via proxy de egresso, 3/3):
+
+| Entrada | Saída | Prova |
+|---|---|---|
+| URL pública | MP4 (qualidade escolhida entre as alturas **reais** listadas) | NASA/JWST no Wikimedia Commons: alturas 240/360/480/1080 oferecidas; pedido 480 → recebido 480 |
+| URL pública | M4A, MP3 (somente áudio) | NASA/Apollo 15 no Wikimedia Commons: faixa de áudio presente na saída |
+
+URLs escolhidas: **domínio público (NASA)**, servidas pelo Wikimedia Commons — públicas, sem login, sem DRM, acervo estável, e baixá-las não viola termos de nenhuma plataforma. Nenhum teste automatizado depende de YouTube/Instagram/TikTok.
+
+Regras:
+- consulta gratuita primeiro (opções reais); a cobrança só acontece no job;
+- links diretos de arquivo (sem metadados no extrator) são **medidos com ffprobe** pelo proxy; sem duração mensurável → recusado antes de cobrar (não inventamos preço);
+- custo D1: 1 ficha; 2 fichas se a duração real > 2 min;
+- limites (configuráveis): 20 min e 300 MB (padrão adotado; PRD não definia);
+- erros: privado/login/DRM/indisponível/ao vivo/playlist → consulta recusada (sem custo); bloqueio da plataforma, arquivo maior que o previsto, vídeo sem áudio quando se pediu áudio → erro do sistema (ficha devolvida); redirect para endereço proibido → erro do usuário.
