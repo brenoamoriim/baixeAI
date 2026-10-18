@@ -14,3 +14,4 @@ python-multipart==0.0.32
 Pillow==13.0.0
 olefile==0.47
 defusedxml==0.7.1
+httpx==0.28.1

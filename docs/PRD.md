@@ -65,7 +65,9 @@ Catálogo de pacotes e preços editável pelo admin (sem deploy).
 - Webhook verificado e idempotente. Crédito só após confirmação autoritativa. Estados tratados: pendente, aprovado, recusado, cancelado, expirado, estornado.
 - ✅ (D5) **Troca de plano** (Pro↔Premium): permitida, sem pro-rata, **vale a partir do próximo ciclo**. Na virada para o novo plano, as fichas do plano que sobraram do ciclo anterior **são somadas** às do novo plano (ex.: sobraram 120 do Pro → novo ciclo Premium com 800 + 120 = 920). As fichas somadas seguem a validade do novo ciclo.
 - ✅ (D5) **Cancelamento:** acesso até o fim do ciclo pago.
+- ✅ (18/10/2026) **Falha na renovação por cartão:** tolerância de **3 dias** (assinatura em atraso, sem novas fichas do plano); pago dentro do prazo, o novo ciclo começa na data do pagamento; sem pagamento após 3 dias, a assinatura expira e a recorrência é cancelada no Mercado Pago.
 - ✅ (D5) **Reembolso:** em até **7 dias** da compra, devolvendo o valor proporcional às fichas **não usadas** (aplica-se a planos e avulsas). Regra exata para o vitalício e texto final dos Termos: revisão jurídica (direito de arrependimento do CDC, art. 49).
+- ✅ (18/10/2026) O reembolso é **pedido ao suporte e executado pelo admin**; o sistema calcula o valor proporcional e estorna pelo Mercado Pago. Não há botão de reembolso para o usuário.
 
 ## 6. Ferramentas
 
@@ -102,7 +104,7 @@ Cadastro, login, logout, verificação de e-mail, recuperação de senha, sessõ
 ✅ (D4) Sem fichas não significa sem limites técnicos:
 - No máximo **2 jobs simultâneos** e **50 operações por dia** (configuráveis em `system_settings`).
 - Os mesmos limites de tamanho dos outros planos.
-- Venda em **lote limitado** (quantidade definida pelos sócios antes do lançamento).
+- Venda em **lote limitado: 50 vagas** (✅ 18/10/2026). Esgotado o lote, a venda é bloqueada no backend.
 - Cláusula de uso justo nos Termos; os **limites de uso justo podem ser revisados a cada 6 meses**, com aviso prévio. O acesso continua vitalício (vida útil do produto, definida nos Termos).
 
 ## 9. Infraestrutura — restrição
@@ -115,6 +117,5 @@ Processamento em lote, API pública, app mobile, outros idiomas, GPU, formatos d
 
 ## 11. Decisões em aberto
 Todas as decisões originais (1–8) foram respondidas em 17/10/2026 (ver marcações ✅). Ainda em aberto:
-1. Quantidade de vagas do lote do vitalício.
-2. Provedor de subdomínio gratuito para a fase de testes (verificar na Fase 6).
-3. E-mail de suporte (depende do domínio).
+1. Provedor de subdomínio gratuito para a fase de testes (verificar na Fase 6).
+2. E-mail de suporte (depende do domínio).
