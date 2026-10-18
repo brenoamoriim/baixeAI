@@ -29,7 +29,7 @@ FROM base AS worker-light
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       libreoffice-writer-nogui libreoffice-calc-nogui \
-      poppler-utils libvips-tools \
+      poppler-utils libvips-tools librsvg2-bin \
       libheif-plugin-libde265 libheif-plugin-aomenc libheif-plugin-dav1d \
       fonts-dejavu-core fonts-liberation \
  && rm -rf /var/lib/apt/lists/*

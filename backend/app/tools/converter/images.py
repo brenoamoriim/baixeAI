@@ -1,6 +1,12 @@
-"""Image conversions. libvips CLI for most formats; Pillow only for BMP/ICO (unsupported by
-libvips without ImageMagick). Metadata (EXIF/GPS) is stripped. SVG is sanitized and rasterized."""
+"""Image conversions. libvips CLI for most formats; Pillow only for BMP/ICO. Metadata (EXIF/GPS)
+is stripped. SVG is sanitized, then rasterized by rsvg-convert inside the sandbox.
 
+libvips is always run with VIPS_BLOCK_UNTRUSTED=1: this disables its "untrusted" loaders, notably
+ImageMagick (magickload), PDF, SVG, FITS and the native .v format, shrinking the attack surface to
+the loaders we actually need (jpeg, png, webp, gif, tiff, heif/avif).
+"""
+
+import xml.etree.ElementTree as StdET
 from pathlib import Path
 
 from defusedxml import ElementTree as SafeET
@@ -17,11 +23,14 @@ ICO_SIZES = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
 SVG_NS = "{http://www.w3.org/2000/svg}"
 XLINK_HREF = "{http://www.w3.org/1999/xlink}href"
 SVG_BLOCKED_TAGS = {"script", "foreignObject", "iframe", "object", "embed", "audio", "video", "handler"}
+VIPS_ENV = {"VIPS_CONCURRENCY": "1", "VIPS_BLOCK_UNTRUSTED": "1"}
+StdET.register_namespace("", "http://www.w3.org/2000/svg")
+StdET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
 
 
 def _vips(argv: list[str], work_dir: Path) -> str:
     try:
-        return run(["vips", *argv], cwd=work_dir, limits=LIMITS, extra_env={"VIPS_CONCURRENCY": "1"})
+        return run(["vips", *argv], cwd=work_dir, limits=LIMITS, extra_env=VIPS_ENV)
     except SandboxTimeout:
         raise TimeoutError from None
     except SandboxFailed as exc:
@@ -36,14 +45,33 @@ def dimensions(path: Path, fmt: str, work_dir: Path) -> tuple[int, int]:
                 return image.size
         except Exception:  # noqa: BLE001 - any parse failure means a bad file
             raise ToolUserError("unreadable_image", "Não foi possível ler esta imagem.") from None
-    source = sanitize_svg(path, work_dir) if fmt == "svg" else path
+    source = rasterize_svg(path, work_dir) if fmt == "svg" else path
+    return int(_header(source, "width", work_dir)), int(_header(source, "height", work_dir))
+
+
+def _header(path: Path, field: str, work_dir: Path) -> str:
     try:
-        out = run(["vipsheader", "-f", "width", str(source)], cwd=work_dir, limits=LIMITS)
-        width = int(out.strip())
-        height = int(run(["vipsheader", "-f", "height", str(source)], cwd=work_dir, limits=LIMITS).strip())
+        value = run(["vipsheader", "-f", field, str(path)], cwd=work_dir, limits=LIMITS, extra_env=VIPS_ENV).strip()
+        int(value)
+        return value
     except (SandboxFailed, SandboxTimeout, ValueError):
         raise ToolUserError("unreadable_image", "Não foi possível ler esta imagem.") from None
-    return width, height
+
+
+def rasterize_svg(path: Path, work_dir: Path) -> Path:
+    """Sanitize, then render to PNG at its natural size. A huge declared size fails inside the
+    sandbox memory limit (user error), and the probe applies the pixel limit to the result."""
+    out = work_dir / "raster-svg.png"
+    if out.exists():
+        return out
+    clean = sanitize_svg(path, work_dir)
+    try:
+        run(["rsvg-convert", "--format", "png", "--output", str(out), str(clean)], cwd=work_dir, limits=LIMITS)
+    except SandboxTimeout:
+        raise TimeoutError from None
+    except SandboxFailed:
+        raise ToolUserError("unreadable_image", "Não foi possível desenhar este SVG.") from None
+    return out
 
 
 def sanitize_svg(path: Path, work_dir: Path) -> Path:
@@ -121,7 +149,7 @@ def convert(input_path: Path, input_format: str, output_format: str, options: di
     if input_format in PILLOW_FORMATS:
         source = _pillow_to_png(input_path, work_dir)
     elif input_format == "svg":
-        source = sanitize_svg(input_path, work_dir)
+        source = rasterize_svg(input_path, work_dir)
 
     if output_format in PILLOW_FORMATS:
         png = source
@@ -132,9 +160,11 @@ def convert(input_path: Path, input_format: str, output_format: str, options: di
 
     output = work_dir / f"output.{output_format}"
     target = f"{output}{_save_suffix(output_format, quality)}"
-    if output_format == "jpg":
+    bands = int(_header(source, "bands", work_dir))
+    if output_format == "jpg" and bands in (2, 4):
         # JPEG has no transparency: flatten on white so transparent areas don't turn black.
-        _vips(["flatten", str(source), target, "--background", "255 255 255"], work_dir)
+        background = "255" if bands == 2 else "255 255 255"
+        _vips(["flatten", str(source), target, "--background", background], work_dir)
     else:
         _vips(["copy", str(source), target], work_dir)
     if not output.exists() or output.stat().st_size == 0:

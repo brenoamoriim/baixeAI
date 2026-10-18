@@ -12,7 +12,8 @@ LIMITS = Limits(timeout_seconds=900, cpu_seconds=1800, memory_bytes=3 * 1024**3,
 PROBE_LIMITS = Limits(timeout_seconds=30, cpu_seconds=30, memory_bytes=1024**3)
 
 DEMUXER = {"mp4": "mov", "mov": "mov", "m4a": "mov", "webm": "matroska", "mkv": "matroska",
-           "avi": "avi", "mp3": "mp3", "wav": "wav", "ogg": "ogg", "opus": "ogg", "flac": "flac"}
+           "avi": "avi", "mp3": "mp3", "wav": "wav", "ogg": "ogg", "opus": "ogg", "flac": "flac",
+           "gif": "gif"}  # gif: only used to check our own video->gif output
 MUXER = {"mp4": "mp4", "webm": "webm", "mkv": "matroska", "mov": "mov", "avi": "avi", "mp3": "mp3",
          "wav": "wav", "ogg": "ogg", "m4a": "ipod", "flac": "flac", "opus": "opus", "gif": "gif"}
 AUDIO_CODEC = {"mp3": "libmp3lame", "wav": "pcm_s16le", "ogg": "libvorbis", "m4a": "aac",
