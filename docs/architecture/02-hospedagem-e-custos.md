@@ -134,3 +134,21 @@ Revisão das hipóteses do §3:
 | H3 vídeo | 120 core-s por vídeo curto | **~26 core-s por minuto de 720p** (13 s × 2 threads); vídeo de 10 min ≈ 130 s de relógio (~260 core-s) |
 
 Leitura: com vídeos de 1–2 min, o custo real fica abaixo da H3; com vídeos de 10 min em 720p, fica ~2× acima. A recomendação de **2 fichas para vídeo (D1)** se mantém. Memória: nenhum caso passou de ~450 MB por motor, o que cabe com folga nos 12 GB da Oracle. ARM pode ser mais lento por núcleo: **NÃO VERIFICADO** até a Fase 6.
+
+## 7. Medições de IA (Fase 3B, 18/10/2026)
+
+Mesma máquina de dev (i5-8265U, Docker Desktop), ONNX Runtime CPU com 2 threads. Dados: `measurements/phase-3b-ai.json` (`python -m app.tools.ai.benchmark`).
+
+| Caso | Carga do modelo (1×/worker) | Tempo por imagem | Pico de memória do processo |
+|---|---|---|---|
+| Fundo, 1 MP | 1,6 s | 3,4 s | 1,57 GB |
+| Fundo, 12 MP | 1,1 s | 3,7–4,0 s | 1,71 GB |
+| Objeto, 1 MP (máscara 120 px) | 16,4 s | 6,0–6,2 s | 1,00 GB |
+| Objeto, 12 MP (máscara 900 px) | 16,3 s | 6,0–7,0 s | 1,18 GB |
+| **Os dois modelos no mesmo processo, 12 MP** | — | — | **2,32 GB** |
+
+Decisões derivadas da medição:
+- `worker-ai` com **concorrência 1** e `mem_limit: 3g` (dois jobs simultâneos precisariam de ~4,6 GB).
+- Tempo por imagem quase independente da resolução (o fundo roda em 1024 px; o inpainting em recorte de 512 px).
+- Capacidade aproximada de 1 worker: ~900 remoções de fundo/hora ou ~550 remoções de objeto/hora na máquina de dev. Na Oracle ARM: **NÃO VERIFICADO** (medir na Fase 6).
+- Hipótese H4 (8 core-s por operação de IA) ficou próxima: ~7 core-s (fundo) e ~12 core-s (objeto).

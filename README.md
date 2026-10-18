@@ -3,8 +3,8 @@
 Plataforma web brasileira de utilitários online (freemium, moeda interna "ficha"):
 baixador de vídeos, conversores, removedor de fundo e removedor de objetos.
 
-> **Estado atual:** Fase 3A — **Conversores disponíveis** (174 combinações testadas com arquivos reais).
-> Baixador de vídeos, removedor de fundo e removedor de objetos ainda aparecem como "Em breve".
+> **Estado atual:** Fase 3B — **Conversores** (174 combinações), **Removedor de fundo** e **Removedor de objetos**
+> (modelos de IA locais em CPU) disponíveis. O baixador de vídeos ainda aparece como "Em breve".
 > Veja [`docs/CHECKLIST.md`](docs/CHECKLIST.md) para o progresso.
 
 ## Rodar tudo (Windows 11 + Docker Desktop, PowerShell)
@@ -14,7 +14,7 @@ docker compose up --build
 ```
 
 Isso sobe: `db` (PostgreSQL), `redis`, `migrate` (aplica migrações + seed e encerra), `api`
-(FastAPI), `worker`, `worker-light` (LibreOffice/libvips), `worker-media` (FFmpeg), `beat`
+(FastAPI), `worker`, `worker-light` (LibreOffice/libvips), `worker-media` (FFmpeg), `worker-ai` (modelos de IA, ~370 MB baixados no build), `beat`
 (Celery), `frontend` (Next.js) e `proxy` (Caddy). A primeira construção demora (baixa LibreOffice e FFmpeg).
 
 | O quê | Endereço |
@@ -62,6 +62,7 @@ docker compose run --rm --build migrate pytest
 # testes com motores reais (conversões, negativos, fluxo completo)
 docker compose run --rm --build --no-deps worker-light pytest tests/engines -o addopts=""
 docker compose run --rm --build --no-deps worker-media pytest tests/engines -o addopts=""
+docker compose run --rm --build --no-deps worker-ai pytest tests/engines/test_ai.py -o addopts=""
 
 # frontend
 cd frontend; npm ci; npm test; npm run lint; npm run typecheck
@@ -75,6 +76,7 @@ por conversão real dentro das imagens dos workers:
 ```powershell
 docker compose run --rm --no-deps worker-light python -m app.tools.converter.verify --categories document,image
 docker compose run --rm --no-deps worker-media python -m app.tools.converter.verify --categories audio,video
+docker compose run --rm --no-deps worker-ai python -m app.tools.ai.verify   # IA: fundo e objetos
 docker compose run --rm migrate python -m app.cli seed   # aplica o resultado ao banco
 ```
 

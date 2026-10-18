@@ -181,3 +181,31 @@ HEVC, AV1, XviD/DivX como **codecs de saída**: `planned` (o FFmpeg verificado t
 | Entrada | Saída | Prova |
 |---|---|---|
 | URL pública (qualquer site suportado pelo yt-dlp) | MP4 (vídeo) / M4A ou MP3 (áudio) conforme opções **reais** retornadas | teste com servidor HTTP de fixture servindo um MP4 gerado (não depende de plataformas externas no CI); como o SSRF bloqueia IPs privados, o fixture usa uma allowlist que **só existe com `APP_ENV=test`** e há teste garantindo que ela é ignorada em `production`; teste manual com plataformas reais documentado |
+
+## 4. Ferramentas de IA (Fase 3B, 18/10/2026)
+
+| Item | Escolha | Licença (verificada 18/10/2026) | Fonte |
+|---|---|---|---|
+| Runtime | ONNX Runtime 1.31.0 (CPU) | MIT | LICENSE do repositório microsoft/onnxruntime; wheels oficiais cp312 **x86_64 e aarch64** no PyPI (fecha a pendência ARM da Fase 1) |
+| Removedor de fundo | IS-Net general-use (`isnet-general-use.onnx`, 170 MB) | pesos Apache-2.0 (LICENSE de xuebinqin/DIS) | arquivo do release oficial do rembg (MIT); **MD5 confere com o publicado pelo rembg** (`fc16ebd8…`); SHA-256 fixado no build |
+| Removedor de objetos | LaMa big-lama, porte ONNX `lama_fp32.onnx` (198 MB, entrada fixa 512×512) | Apache-2.0 (card Carve/LaMa-ONNX; código advimman/lama Apache-2.0) | Hugging Face Carve/LaMa-ONNX; sem checksum publicado → SHA-256 medido e fixado no build |
+| Implementação | camada própria sobre onnxruntime (pré/pós-processamento do IS-Net igual ao `DisSession` do rembg) | — | evita dependências pesadas do rembg (scikit-image, scipy, pymatting) |
+| Descartado | BRIA RMBG | exige acordo pago para uso comercial | — |
+
+Risco residual: termos do dataset de treino do LaMa (Places2) **NÃO VERIFICADO**.
+
+Combinações `available` (todas verificadas por `python -m app.tools.ai.verify` dentro do `worker-ai`, 18/18):
+
+| Ferramenta | Entradas | Saídas |
+|---|---|---|
+| `background_remover` | JPG, PNG, WEBP | PNG e WEBP (transparente ou cor sólida), JPG (cor sólida; padrão branco) |
+| `object_remover` | JPG, PNG, WEBP + máscara PNG | PNG, WEBP, JPG |
+
+Como cada uma é provada (imagens sintéticas de geometria conhecida): fundo → alfa alto no disco e baixo nos cantos, cor sólida aplicada; objeto → pixels fora da máscara **idênticos em PNG** (JPG/WEBP com perda: tolerância de 40 níveis), área marcada deixa de parecer o objeto.
+
+Comportamento:
+- o modelo é carregado uma vez por processo do worker (`lru_cache`) e reutilizado;
+- o removedor de objetos processa um recorte ao redor da máscara (preserva detalhe em fotos grandes) e só cola pixels **dentro** da máscara;
+- rotação EXIF aplicada; **metadados (EXIF/GPS) removidos** da saída (teste);
+- máscara: segundo upload do mesmo dono, PNG, mesmo tamanho da imagem (ou h×w para fotos com EXIF girado);
+- aceite "tenho direito de editar esta imagem" obrigatório na criação do job e gravado em `terms_acceptances` na mesma transação da cobrança. A estimativa de custo não exige o aceite (o custo aparece antes).

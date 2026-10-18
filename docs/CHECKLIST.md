@@ -1,6 +1,6 @@
 # BaixeAI — Checklist do projeto
 
-> Memória do projeto entre sessões. Atualizado a cada entrega. Última atualização: **18/10/2026** (Fase 3A).
+> Memória do projeto entre sessões. Atualizado a cada entrega. Última atualização: **18/10/2026** (Fase 3B).
 
 Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 
@@ -53,12 +53,18 @@ Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 - [ ] ARM64: LibreOffice/HEIC/tempos não medidos em ARM real → Fase 6
 - [ ] Workers ainda têm credenciais do banco no ambiente (risco residual) → papel de banco mínimo na Fase 6
 
-## Fase 3B — IA de imagem
-- [ ] Licenças de código e pesos confirmadas
-- [ ] Removedor de fundo
-- [ ] Remover objeto (editor de máscara + inpainting)
-- [ ] Métricas reais de CPU/memória
-- [ ] Testes
+## Fase 3B — IA de imagem (`phase-3b-ia-imagem`) — ✅ concluída, aguardando aprovação
+
+- [x] Licenças confirmadas e registradas (`architecture/07` §4): ONNX Runtime MIT; IS-Net Apache-2.0; LaMa ONNX Apache-2.0; BRIA descartado (comercial pago)
+- [x] Interfaces `BackgroundRemovalProvider` / `InpaintingProvider`; modelo carregado 1× por processo
+- [x] `worker-ai` separado (fila `ai`), modelos no build com SHA-256, sem internet, concorrência 1 derivada da memória medida (2,3 GB)
+- [x] Removedor de fundo: PNG/WEBP transparente ou cor sólida, JPG com cor; antes/depois; download
+- [x] Removedor de objetos: editor de pincel (desfazer/limpar/tamanho), máscara no tamanho real, margem configurável, recorte + inpainting, antes/depois; aceite de direitos obrigatório e registrado
+- [x] 18/18 combinações verificadas com os modelos reais; latência e memória medidas (`architecture/02` §7)
+- [x] Testes: worker-ai 38 passed, 27 deles com os modelos combinações, opções inválidas, máscara vazia/errada/de outro usuário, aceite, falha do modelo com devolução, EXIF girado + GPS removido); API 115, worker-light 111, worker-media 107, frontend 17
+- [x] onnxruntime tem wheel oficial aarch64 (pendência da Fase 1 resolvida no papel; execução em ARM real → Fase 6)
+- [ ] Termos do dataset Places2 (treino do LaMa): NÃO VERIFICADO
+- [ ] Qualidade em fotos reais (cabelo, objetos grandes): avaliada só com imagens sintéticas nos testes automáticos
 
 ## Fase 3C — Baixador de vídeos
 - [ ] Adaptador `VideoExtractor` (yt-dlp)

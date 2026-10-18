@@ -71,6 +71,17 @@ Atacantes: usuário abusivo (quer fichas grátis), bot (abuso do visitante, scra
 | Segredos no ambiente dos motores | o sandbox passa ambiente mínimo (teste). **Risco residual:** o processo do worker tem `DATABASE_URL`/`REDIS_URL` no próprio ambiente; um exploit no motor, rodando com o mesmo usuário, poderia ler `/proc/<pai>/environ`. Mitigação planejada (Fase 6): papel de banco com privilégio mínimo para os workers e/ou motor sob outro UID |
 | Workers | rede `internal` (sem internet), rootfs só leitura, `/tmp` em tmpfs, `cap_drop: ALL`, `no-new-privileges`, limites de memória e PIDs; rlimits por processo |
 
+## 3.3 Controles da Fase 3B (IA de imagem)
+
+| Ameaça / controle | Situação |
+|---|---|
+| Download de modelo em runtime (cadeia de suprimento) | modelos baixados **só no build**, conferidos por SHA-256 (build falha se mudar); worker sem internet |
+| Uso para remover marca d'água/autoria de terceiros (R8) | aceite obrigatório e registrado por job; texto do produto não incentiva; nome "Removedor de objetos" (D6). Risco residual: a declaração não impede o abuso |
+| Máscara de outro usuário | máscara é upload com dono; 404 para dono diferente (teste) |
+| Máscara maliciosa/enorme | passa pela mesma detecção e inspeção de imagem (limite de pixels) e precisa ter o tamanho da imagem |
+| Privacidade | EXIF/GPS removidos da saída (teste); imagem processada localmente, sem terceiros |
+| Esgotamento de memória | concorrência 1 + `mem_limit 3g`; falha do modelo → erro do sistema → ficha devolvida (teste) |
+
 ## 4. Riscos residuais (aceitos e documentados)
 
 1. **Zero-day** em FFmpeg/LibreOffice/libvips: mitigado por isolamento, não eliminado.
