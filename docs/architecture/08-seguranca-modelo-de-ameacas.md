@@ -106,6 +106,21 @@ Riscos residuais:
 - Dependência **mutagen (GPL-2.0+)** carregada pelo yt-dlp no processo: sem distribuição (SaaS), sem obrigação de publicar código; se as imagens forem distribuídas, rever.
 - O proxy de egresso é código próprio (~150 linhas), não um proxy auditado; coberto por testes, sem auditoria externa.
 
+## 3.5 Controles da Fase 4 (pagamentos)
+
+| Ameaça | Controle | Evidência |
+|---|---|---|
+| Preço adulterado no navegador | o cliente só envia o código do produto; preço lido do banco e gravado no pagamento; campos extras ignorados | teste |
+| Webhook falso / replay / troca de id | HMAC com segredo, janela de 300 s, manifesto inclui `data.id` e `x-request-id`; inválidos registrados e respondidos com 401 | testes |
+| Concessão dupla | dedup do evento + lock de linha + `fulfilled_at` + UNIQUE em `provider_payment_id` e no bucket | teste com 5 processamentos simultâneos |
+| "Paguei" pelo redirect | página de retorno só lê nosso estado; nunca concede | teste |
+| Valor/moeda diferentes do esperado | sem concessão; `payment_mismatch` auditado | teste |
+| Dados de cartão | nunca passam pelo nosso servidor (Checkout Pro e assinatura hospedados pelo MP) | desenho |
+| Credenciais | só em variáveis de ambiente; `sandbox_check` recusa rodar em produção | — |
+| Abuso de checkout | rate limit 10/10 min por usuário; e-mail verificado obrigatório | — |
+
+Riscos residuais: a validação no sandbox real ainda não foi feita (sem credenciais); o comportamento exato de `init_point` em assinatura pendente e de `/authorized_payments` precisa ser confirmado; chargeback depois do consumo das fichas gera prejuízo (apenas auditado).
+
 ## 4. Riscos residuais (aceitos e documentados)
 
 1. **Zero-day** em FFmpeg/LibreOffice/libvips: mitigado por isolamento, não eliminado.

@@ -5,7 +5,8 @@ baixador de vídeos, conversores, removedor de fundo e removedor de objetos.
 
 > **Estado atual:** Fase 3C — as 4 ferramentas funcionam: **Conversores** (174 combinações), **Removedor de fundo**,
 > **Removedor de objetos** e **Baixador de vídeos** (conteúdo público; ver riscos em `docs/architecture/12` §4).
-> Pagamentos ainda não existem (Fase 4).
+> Pagamentos (Mercado Pago) implementados na Fase 4; ficam **desligados** até haver credenciais no `.env`
+> (validação no sandbox: `docs/architecture/11`, seção "Fase 4").
 > Veja [`docs/CHECKLIST.md`](docs/CHECKLIST.md) para o progresso.
 
 ## Rodar tudo (Windows 11 + Docker Desktop, PowerShell)

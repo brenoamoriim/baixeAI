@@ -14,6 +14,9 @@ x-backend-env: &backend-env
   REDIS_URL: redis://:${REDIS_PASSWORD:-redis_dev_only}@redis:6379/0
   STORAGE_LOCAL_ROOT: /data/storage
   EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
+  MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
+  MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
+  API_PUBLIC_URL: ${API_PUBLIC_URL:-}
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
   TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
 
@@ -206,6 +209,17 @@ services:
       - "127.0.0.1:3000:3000"
     depends_on:
       - api
+    networks: [edge]
+
+  # Optional, development only: public HTTPS URL for Mercado Pago webhooks (Cloudflare Quick Tunnel,
+  # no account, no uptime guarantee, hostname changes on every start).
+  #   docker compose --profile tunnel up -d tunnel ; docker compose logs tunnel | Select-String trycloudflare
+  tunnel:
+    image: cloudflare/cloudflared:2026.9.0
+    command: ["tunnel", "--no-autoupdate", "--url", "http://proxy:8080"]
+    profiles: ["tunnel"]
+    depends_on:
+      - proxy
     networks: [edge]
 
 networks:

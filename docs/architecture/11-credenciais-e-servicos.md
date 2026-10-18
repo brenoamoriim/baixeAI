@@ -36,3 +36,20 @@
 **6. Resend:** criar conta → adicionar o domínio → criar os registros DNS (SPF/DKIM) na Cloudflare → gerar API key → `RESEND_API_KEY`.
 
 **7. E-mail de suporte:** Cloudflare → Email Routing → encaminhar `suporte@` para o Gmail dos sócios.
+
+## Fase 4 — validar no sandbox do Mercado Pago (quando tiver as credenciais de teste)
+
+1. Copie `.env.example` para `.env` (o `.env` não é versionado) e preencha **só com credenciais de TESTE**:
+   `MP_ACCESS_TOKEN`, `MP_PUBLIC_KEY`, `MP_WEBHOOK_SECRET`.
+2. Suba o túnel público de desenvolvimento e pegue o endereço:
+   ```powershell
+   docker compose --profile tunnel up -d tunnel
+   docker compose logs tunnel | Select-String trycloudflare
+   ```
+   Coloque o endereço em `API_PUBLIC_URL` no `.env` (ele muda a cada vez que o túnel sobe).
+3. No painel do Mercado Pago (Suas integrações → Webhooks), cadastre `https://<túnel>/api/webhooks/mercadopago` com os tópicos **Pagamentos**, **Planos e assinaturas** e **Chargebacks**.
+4. `docker compose up -d` e rode `docker compose exec api python -m app.payments.sandbox_check`.
+5. Compre pelo site (http://localhost:8080/precos) usando os cartões de teste (titular `APRO` = aprovado, `OTHE` = recusado, `CONT` = pendente).
+6. Me avise: eu confiro os eventos recebidos (`payment_events`) e marco o que ficou validado.
+
+Nunca cole credenciais no chat.

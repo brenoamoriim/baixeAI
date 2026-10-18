@@ -1,6 +1,6 @@
 # BaixeAI — Checklist do projeto
 
-> Memória do projeto entre sessões. Atualizado a cada entrega. Última atualização: **18/10/2026** (Fase 3C).
+> Memória do projeto entre sessões. Atualizado a cada entrega. Última atualização: **18/10/2026** (Fase 4).
 
 Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 
@@ -82,11 +82,23 @@ Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 - [ ] Revisão jurídica do aviso de direitos e canal de remoção → Fase 5/6
 - [ ] ACL do Redis para o `worker-download` → Fase 6
 
-## Fase 4 — Monetização
-- [ ] `PaymentProvider` + Mercado Pago (Checkout Pro + `/preapproval` cartão + renovação manual)
-- [ ] Webhooks verificados e idempotentes
-- [ ] Assinaturas, vitalício, estornos, reconciliação
-- [ ] Testes no sandbox
+## Fase 4 — Monetização (`phase-4-monetizacao`) — ✅ implementada; ⚠️ validação no sandbox real pendente (sem credenciais)
+
+- [x] Decisões: lote vitalício 50 vagas; tolerância de 3 dias no cartão; reembolso pelo suporte executado pelo admin (PRD atualizado)
+- [x] `PaymentProvider` + implementação Mercado Pago (REST/httpx); regra de negócio não conhece o provedor
+- [x] Catálogo e preços só do banco; preço enviado pelo navegador é ignorado (teste)
+- [x] Checkout Pro (Pix, crédito, débito) para avulsas, ciclo manual e vitalício; assinatura no cartão via `/preapproval` pendente (sem dados de cartão no nosso site)
+- [x] Webhook verificado (HMAC + janela de tempo), idempotente, com reconsulta à API; concessão exatamente uma vez (teste com 5 em paralelo)
+- [x] Estados: pendente, aprovado, recusado, cancelado, expirado, estornado, chargeback, em disputa
+- [x] Assinaturas: ativação, renovação (novo ciclo, sem acúmulo), troca no próximo ciclo com sobra somada, cancelamento até o fim do ciclo, tolerância de 3 dias
+- [x] Vitalício sem ledger de fichas; estorno revoga; vagas esgotam
+- [x] Estorno/chargeback por lançamento compensatório; reembolso do admin proporcional e em até 7 dias
+- [x] Reconciliação (webhook perdido recuperado) e auditoria de divergências
+- [x] Frontend: `/precos`, `/pagamento/retorno` (nunca concede), histórico e gestão da assinatura no painel
+- [x] Testes: API 221 passed (31 de pagamentos + 12 unitários do provedor)
+- [ ] **Credenciais de TESTE do Mercado Pago** (sócios) → `docs/architecture/11` "Fase 4"
+- [ ] Rodar `sandbox_check` + compras de teste reais (Pix, crédito, débito, assinatura, reembolso) — confirmar `init_point` da assinatura pendente e o formato de `/authorized_payments`
+- [ ] Credenciais de produção + pagamento real de valor mínimo → Fase 6
 
 ## Fase 5 — Site público, dashboard, admin, conformidade
 - [ ] Homepage, páginas de ferramenta com SEO

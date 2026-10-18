@@ -97,3 +97,22 @@ Recomendação: lançar em PF é tecnicamente possível com o Plano B; planejar 
 - Se `/preapproval` "pendente" aceita Pix e se cada ciclo exige ação do pagador.
 - Mapeamento de expiração do Pix.
 - Fluxo de reembolso e evento de chargeback.
+
+## 8. Implementação (Fase 4, 18/10/2026)
+
+| Fluxo | Como foi implementado | Validado |
+|---|---|---|
+| Avulso (Pix, crédito, débito, saldo MP) | `POST /checkout/preferences` (Checkout Pro), `external_reference` = id do nosso pagamento, boleto excluído, 1 parcela | testes com provedor simulado; **sandbox real pendente** |
+| Plano mensal — cartão automático | `POST /preapproval` com `status: pending` (o usuário cadastra o cartão na página do MP; nenhum dado de cartão passa por nós) | idem; existência de `init_point` na resposta: **NÃO VERIFICADO** até o `sandbox_check` |
+| Plano mensal — Pix/débito | Checkout Pro de 1 ciclo + lembrete por e-mail 3 dias antes; renovação antecipada começa no fim do ciclo atual | testes |
+| Vitalício | Checkout Pro, pagamento único; lote de **50 vagas** (checkout aberto segura a vaga por 30 min) | testes |
+| Webhook | HMAC-SHA256 do manifesto `id;request-id;ts`, tolerância de 300 s (anti-replay), dedup por `x-request-id`, 200 imediato e processamento assíncrono que **sempre reconsulta a API** | testes (assinatura inválida, replay, id trocado, duplicado, 5 em paralelo) |
+| Concessão | só com `approved` da API + valor/moeda/referência iguais ao snapshot; `fulfilled_at` + lock de linha + UNIQUE; redirect nunca concede | testes |
+| Cobrança recorrente | `subscription_authorized_payment` → `GET /authorized_payments/{id}` → pagamento → novo ciclo | formato da resposta **NÃO VERIFICADO** até o sandbox |
+| Estorno/chargeback | revoga o saldo restante (lançamento compensatório); falta registrada em `audit_events` | testes |
+| Reembolso (D5) | admin executa em até 7 dias; valor proporcional às fichas não usadas; `POST /v1/payments/{id}/refunds` com chave de idempotência | testes (valor 6/10 de R$ 4,90 = R$ 2,94; prazo vencido → 409) |
+| Falha de renovação no cartão | `past_due` por 3 dias, depois `expired` + cancelamento no MP | testes |
+| Reconciliação | a cada 10 min: eventos não processados + pagamentos pendentes há > 5 min (busca por `external_reference`); alerta para aprovado sem concessão | testes (webhook perdido recuperado) |
+| Sem credenciais | pagamentos desligados (503) — nunca um checkout falso | teste + verificação manual |
+
+Para validar no sandbox: `docs/architecture/11` §1 e `python -m app.payments.sandbox_check`.
