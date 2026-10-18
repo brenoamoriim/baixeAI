@@ -166,34 +166,44 @@ def source_meta(category: str, path: Path, fmt: str, work: Path) -> dict:
     return {}
 
 
-def verify(categories: list[str]) -> dict:
+def make_fixtures(categories: list[str], root: Path) -> dict[str, dict[str, Path]]:
+    fixtures: dict[str, dict[str, Path]] = {}
+    for category in categories:
+        folder = root / f"fx-{category}"
+        folder.mkdir()
+        fixtures[category] = MAKERS[category](folder)
+    return fixtures
+
+
+def run_candidate(candidate: matrix.Candidate, fixtures: dict[str, dict[str, Path]], root: Path) -> None:
+    """Convert the fixture through the production handler and check the output. Raises on failure."""
     handler = ConverterHandler()
+    source_category = "video" if candidate.input_format in matrix.VIDEO_FORMATS else candidate.category
+    source = fixtures.get(source_category, {}).get(candidate.input_format)
+    assert source is not None, "no fixture"
+    work = root / f"job-{candidate.input_format}-{candidate.output_format}"
+    work.mkdir()
+    local = work / f"input.{candidate.input_format}"
+    shutil.copyfile(source, local)
+    meta = source_meta(candidate.category, local, candidate.input_format, work)
+    options = handler.validate_options(candidate.input_format, candidate.output_format, {}, meta)
+    result = handler.execute(candidate.input_format, candidate.output_format, options, work, local,
+                             {**meta, "original_name": f"teste.{candidate.input_format}"})
+    check_output(candidate, meta, result.output_path, work)
+
+
+def verify(categories: list[str]) -> dict:
     results = {"passed": [], "failed": []}
     with tempfile.TemporaryDirectory(prefix="verify-") as tmp:
         root = Path(tmp)
-        fixtures: dict[str, dict[str, Path]] = {}
-        for category in categories:
-            folder = root / f"fx-{category}"
-            folder.mkdir()
-            fixtures[category] = MAKERS[category](folder)
+        fixtures = make_fixtures(categories, root)
         for candidate in matrix.candidates():
             if candidate.category not in categories:
                 continue
-            source_category = "video" if candidate.input_format in matrix.VIDEO_FORMATS else candidate.category
-            source = fixtures.get(source_category, {}).get(candidate.input_format)
             entry = {"key": candidate.key, "category": candidate.category, "engine": candidate.engine}
-            work = root / f"job-{candidate.input_format}-{candidate.output_format}"
-            work.mkdir()
             started = time.monotonic()
             try:
-                assert source is not None, "no fixture"
-                local = work / f"input.{candidate.input_format}"
-                shutil.copyfile(source, local)
-                meta = source_meta(candidate.category, local, candidate.input_format, work)
-                options = handler.validate_options(candidate.input_format, candidate.output_format, {}, meta)
-                result = handler.execute(candidate.input_format, candidate.output_format, options, work, local,
-                                         {**meta, "original_name": f"teste.{candidate.input_format}"})
-                check_output(candidate, meta, result.output_path, work)
+                run_candidate(candidate, fixtures, root)
                 entry["seconds"] = round(time.monotonic() - started, 2)
                 results["passed"].append(entry)
             except (AssertionError, ToolUserError, ToolSystemError, TimeoutError, Exception) as exc:  # noqa: BLE001

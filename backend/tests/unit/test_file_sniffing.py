@@ -6,9 +6,9 @@ import pytest
 
 from app.security.file_sniffing import SniffError, sniff
 from app.services.uploads import safe_display_name
+from app.tools.base import ToolUserError
 from app.tools.converter.handler import output_filename
 from app.tools.converter.images import sanitize_svg
-from app.tools.base import ToolUserError
 
 HEIC = Path(__file__).resolve().parents[2] / "app/tools/converter/fixtures/sample.heic"
 

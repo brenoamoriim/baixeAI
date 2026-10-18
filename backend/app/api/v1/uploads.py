@@ -42,6 +42,7 @@ def create_upload(
     subject = f"u:{user.id}" if user else f"ip:{keyed_hash(actor.ip, purpose='ip')}"
     hit(f"uploads:{subject}", limit=30, window_seconds=600)
     upload = upload_service.create(db, actor, file.file, file.filename)
+    db.refresh(upload)  # the probe may already have finished (it runs in a worker)
     return _serialize(upload)
 
 

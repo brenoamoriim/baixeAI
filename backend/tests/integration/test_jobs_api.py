@@ -261,5 +261,10 @@ def test_expired_outputs_are_deleted(client):
 def test_tools_listing_exposes_only_available(client):
     tools = {t["id"]: t for t in client.get("/api/v1/tools").json()["tools"]}
     assert tools["echo"]["status"] == "available"
-    for real in ("video_downloader", "converter", "background_remover", "object_remover"):
+    # Phase 3A: every converter capability exposed is in verified.json (real conversion passed)
+    from app.tools.converter.matrix import verified_keys
+
+    exposed = {f"{c['input']}->{c['output']}" for c in tools["converter"]["capabilities"]}
+    assert tools["converter"]["status"] == "available" and exposed == verified_keys()
+    for real in ("video_downloader", "background_remover", "object_remover"):
         assert tools[real]["status"] == "coming_soon" and tools[real]["capabilities"] == []

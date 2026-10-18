@@ -57,6 +57,7 @@ def _human_mb(n: int) -> str:
 
 def create(db: Session, actor, stream: BinaryIO, filename: str | None) -> Upload:
     limits = get_setting(db, "limits_bytes")
+    db.commit()  # end the read-only transaction; the insert below opens its own
     hard_cap = max(limits.values())
     display = safe_display_name(filename)
     declared = display.rsplit(".", 1)[-1] if "." in display else ""
@@ -125,6 +126,8 @@ def get_owned(db: Session, actor, upload_id: uuid.UUID) -> Upload:
 
 def _finish(db: Session, upload_id: uuid.UUID, *, meta: dict | None = None, fmt: str | None = None,
             error: tuple[str, str] | None = None) -> None:
+    if db.in_transaction():
+        db.commit()  # close reads done while probing (settings lookups)
     with db.begin():
         upload = db.get(Upload, upload_id, with_for_update=True)
         if upload is None or upload.status != "probing":
