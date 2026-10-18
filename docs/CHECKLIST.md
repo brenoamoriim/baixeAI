@@ -61,7 +61,7 @@ Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 - [x] Removedor de fundo: PNG/WEBP transparente ou cor sólida, JPG com cor; antes/depois; download
 - [x] Removedor de objetos: editor de pincel (desfazer/limpar/tamanho), máscara no tamanho real, margem configurável, recorte + inpainting, antes/depois; aceite de direitos obrigatório e registrado
 - [x] 18/18 combinações verificadas com os modelos reais; latência e memória medidas (`architecture/02` §7)
-- [x] Testes: worker-ai 38 passed, 27 deles com os modelos combinações, opções inválidas, máscara vazia/errada/de outro usuário, aceite, falha do modelo com devolução, EXIF girado + GPS removido); API 115, worker-light 111, worker-media 107, frontend 17
+- [x] Testes: worker-ai 38 passed, 27 deles com os modelos (combinações, opções inválidas, máscara vazia/errada/de outro usuário, aceite, falha do modelo com devolução, EXIF girado + GPS removido); API 115, worker-light 111, worker-media 107, frontend 17
 - [x] onnxruntime tem wheel oficial aarch64 (pendência da Fase 1 resolvida no papel; execução em ARM real → Fase 6)
 - [ ] Termos do dataset Places2 (treino do LaMa): NÃO VERIFICADO
 - [ ] Qualidade em fotos reais (cabelo, objetos grandes): avaliada só com imagens sintéticas nos testes automáticos
