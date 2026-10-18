@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { BillingPanel } from "@/components/BillingPanel";
 import { Alert, Card } from "@/components/ui";
 import { api, ApiError, type Credits, type Job } from "@/lib/api";
 import { bucketLabel, formatDate, formatDateTime, jobStatusLabel, pluralFichas, toolName } from "@/lib/format";
@@ -90,6 +91,8 @@ export default function DashboardPage() {
           </p>
         )}
       </Card>
+
+      <BillingPanel />
 
       <Card title="Processamentos recentes">
         {jobs.length === 0 ? (

@@ -22,6 +22,11 @@ export function SiteHeader() {
           BaixeAI
         </Link>
         <ul className="flex items-center gap-4 text-sm">
+          <li>
+            <Link href="/precos" className="text-slate-700 hover:underline">
+              Preços
+            </Link>
+          </li>
           {me === undefined ? null : me ? (
             <>
               <li>
