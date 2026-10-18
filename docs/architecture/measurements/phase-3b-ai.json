@@ -1,0 +1,70 @@
+{
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i5-8265U CPU @ 1.60GHz",
+    "nproc": 8,
+    "arch": "x86_64",
+    "threads": "2"
+  },
+  "results": [
+    {
+      "case": "background",
+      "size": "1280x800",
+      "megapixels": 1.0,
+      "load_s": 1.59,
+      "first_s": 3.43,
+      "warm_s": 3.44,
+      "peak_rss_mb": 1566
+    },
+    {
+      "case": "background",
+      "size": "2448x1632",
+      "megapixels": 4.0,
+      "load_s": 1.07,
+      "first_s": 3.8,
+      "warm_s": 3.28,
+      "peak_rss_mb": 1555
+    },
+    {
+      "case": "background",
+      "size": "4000x3000",
+      "megapixels": 12.0,
+      "load_s": 1.14,
+      "first_s": 3.96,
+      "warm_s": 3.69,
+      "peak_rss_mb": 1707
+    },
+    {
+      "case": "inpaint",
+      "size": "1280x800",
+      "megapixels": 1.0,
+      "mask_side_px": 120,
+      "load_s": 16.39,
+      "first_s": 5.99,
+      "warm_s": 6.2,
+      "peak_rss_mb": 999
+    },
+    {
+      "case": "inpaint",
+      "size": "4000x3000",
+      "megapixels": 12.0,
+      "mask_side_px": 120,
+      "load_s": 15.9,
+      "first_s": 6.59,
+      "warm_s": 6.1,
+      "peak_rss_mb": 1185
+    },
+    {
+      "case": "inpaint",
+      "size": "4000x3000",
+      "megapixels": 12.0,
+      "mask_side_px": 900,
+      "load_s": 16.27,
+      "first_s": 7.01,
+      "warm_s": 5.96,
+      "peak_rss_mb": 1179
+    }
+  ],
+  "measured_at": "2026-10-18",
+  "combined_peak_rss_mb_both_models_12mp": 2315,
+  "note": "Dev machine via Docker Desktop (WSL2), ONNX Runtime CPU, 2 intra-op threads. Not the Oracle ARM host."
+}

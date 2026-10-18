@@ -1,0 +1,3 @@
+# worker-ai only (image AI). Install with: pip install -r requirements-ai.txt -c constraints.txt
+onnxruntime==1.31.0
+numpy==2.5.4

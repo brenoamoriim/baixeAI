@@ -119,6 +119,24 @@ services:
       redis: { condition: service_healthy }
     networks: [internal]
 
+  worker-ai:
+    build: { context: ./backend, target: worker-ai }
+    environment: *backend-env
+    volumes:
+      - ./backend:/app
+      - storage:/data/storage
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 3g
+    pids_limit: 64
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    networks: [internal]
+
   beat:
     build: { context: ./backend, target: dev }
     command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]

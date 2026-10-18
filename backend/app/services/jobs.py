@@ -25,6 +25,7 @@ from app.models import (
     CreditReservation,
     GuestAllowance,
     ProcessingJob,
+    TermsAcceptance,
     ToolCapability,
     ToolDefinition,
     UsageRecord,
@@ -109,26 +110,49 @@ class Prepared:
     queue: str
     input_key: str | None = None
     input_meta: dict | None = None
+    terms: tuple[str, str] | None = None  # (document, version) accepted with this job
+
+
+def _ready_upload(db: Session, actor: Actor, raw_id) -> "uploads.Upload":
+    try:
+        upload_id = uuid.UUID(str(raw_id))
+    except ValueError:
+        raise AppError("Envie um arquivo primeiro.", code="upload_required") from None
+    upload = uploads.get_owned(db, actor, upload_id)
+    if upload.status == "probing":
+        raise AppError("O arquivo ainda está sendo analisado. Aguarde.", code="upload_not_ready")
+    if upload.status != "ready":
+        raise AppError(upload.error_message or "Arquivo recusado.", code=upload.error_code or "upload_rejected")
+    return upload
 
 
 def prepare(db: Session, actor: Actor, tool_id: str, input_format: str, output_format: str,
-            options: dict) -> Prepared:
+            options: dict, *, for_estimate: bool = False) -> Prepared:
     tool, capability = available_capability(db, tool_id, input_format, output_format)
     handler = get_handler(tool_id)
     upload = None
+    extra_meta: dict[str, dict] = {}
+    extra_keys: dict[str, str] = {}
     if handler.requires_upload:
-        try:
-            upload_id = uuid.UUID(str(options.get("upload_id")))
-        except ValueError:
-            raise AppError("Envie um arquivo primeiro.", code="upload_required") from None
-        upload = uploads.get_owned(db, actor, upload_id)
-        if upload.status == "probing":
-            raise AppError("O arquivo ainda está sendo analisado. Aguarde.", code="upload_not_ready")
-        if upload.status != "ready":
-            raise AppError(upload.error_message or "Arquivo recusado.", code=upload.error_code or "upload_rejected")
+        upload = _ready_upload(db, actor, options.get("upload_id"))
         if upload.format != input_format:
             raise AppError("O formato escolhido não corresponde ao conteúdo do arquivo.", code="format_mismatch")
-    upload_meta = upload.meta if upload else None
+    for field in getattr(handler, "extra_uploads", ()):
+        if options.get(field) is None and for_estimate:
+            continue
+        extra = _ready_upload(db, actor, options.get(field))
+        extra_meta[field] = {**extra.meta, "format": extra.format}
+        extra_keys[field] = extra.storage_key
+    terms = getattr(handler, "required_terms", None)
+    if terms and not for_estimate and options.get("accept_rights") is not True:
+        raise AppError("Confirme que você tem direito de editar esta imagem.", code="rights_not_accepted")
+    upload_meta = {**upload.meta, "extra": extra_meta} if upload else None
+    if for_estimate and getattr(handler, "extra_uploads", ()):
+        options = {**options, "accept_rights": True}  # estimate: price only, terms checked on create
+        if not extra_meta:
+            cost = credit_cost(db, tool, capability, handler.metadata(options, upload_meta))
+            return Prepared(tool=tool, capability=capability, options={}, cost=cost,
+                            queue=handler.queue_for(capability.category) or tool.queue)
     clean_options = handler.validate_options(input_format, output_format, options, upload_meta)
     cost = credit_cost(db, tool, capability, handler.metadata(clean_options, upload_meta))
     prepared = Prepared(tool=tool, capability=capability, options=clean_options, cost=cost,
@@ -136,7 +160,9 @@ def prepare(db: Session, actor: Actor, tool_id: str, input_format: str, output_f
     if upload is not None:
         prepared.input_key = upload.storage_key
         prepared.input_meta = {**upload.meta, "original_name": upload.original_name,
-                               "format": upload.format, "size_bytes": upload.size_bytes}
+                               "format": upload.format, "size_bytes": upload.size_bytes,
+                               "extra_keys": extra_keys}
+    prepared.terms = terms
     return prepared
 
 
@@ -144,7 +170,7 @@ def estimate(db: Session, actor: Actor, *, tool_id: str, input_format: str, outp
              options: dict) -> int:
     """Cost the backend WILL charge for this request (same rules as create_job)."""
     with db.begin():
-        return prepare(db, actor, tool_id, input_format, output_format, options).cost
+        return prepare(db, actor, tool_id, input_format, output_format, options, for_estimate=True).cost
 
 
 def create_job(
@@ -234,6 +260,7 @@ def _create_for_user(db, actor, p: Prepared, key, at):
         job = _new_job(p, key, "lifetime", user_id=user.id)
         db.add(job)
         db.flush()
+        _record_terms(db, p, job, actor, user_id=user.id)
         return job, True
 
     if active_jobs >= int(get_setting(db, "max_pending_jobs_per_user")):
@@ -241,9 +268,19 @@ def _create_for_user(db, actor, p: Prepared, key, at):
     job = _new_job(p, key, "credits", user_id=user.id)
     db.add(job)
     db.flush()
+    _record_terms(db, p, job, actor, user_id=user.id)
     credits.reserve(db, user, tool_id=p.tool.id, amount=p.cost, job_id=job.id,
                     idempotency_key=key, at=at)
     return job, True
+
+
+def _record_terms(db: Session, p: Prepared, job: ProcessingJob, actor: Actor, **owner) -> None:
+    """Rights declaration recorded in the same transaction as the charge (PRD §6.4)."""
+    if p.terms is None:
+        return
+    document, version = p.terms
+    db.add(TermsAcceptance(document=document, version=version, job_id=job.id,
+                           ip_hash=keyed_hash(actor.ip, purpose="ip"), **owner))
 
 
 def _check_lifetime_fair_use(db: Session, user_id: uuid.UUID, active_jobs: int, at: datetime):
@@ -278,6 +315,7 @@ def _create_for_guest(db, actor, p: Prepared, key, at):
     guests.reserve(db, allowance, amount=p.cost, job_id=job.id)
     db.add(job)
     db.flush()
+    _record_terms(db, p, job, actor, guest_allowance_id=allowance.id)
     return job, True
 
 
@@ -327,6 +365,14 @@ def run(db: Session, job_id: uuid.UUID) -> None:
                 shutil.copyfile(get_storage().open_path(input_key), input_path)
             except (FileNotFoundError, ValueError):
                 raise ToolSystemError("input_missing") from None
+        extra_paths = {}
+        for field, key in input_meta.get("extra_keys", {}).items():
+            extra_paths[field] = work_dir / f"{field}.{key.rsplit('.', 1)[-1]}"
+            try:
+                shutil.copyfile(get_storage().open_path(key), extra_paths[field])
+            except (FileNotFoundError, ValueError):
+                raise ToolSystemError("input_missing") from None
+        input_meta["extra_paths"] = extra_paths
         result = handler.execute(input_format, output_format, options, work_dir, input_path, input_meta)
         key = new_key(f"jobs/{job_id.hex}", result.output_path.suffix.lstrip("."))
         get_storage().save_file(key, result.output_path)

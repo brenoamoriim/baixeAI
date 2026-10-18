@@ -266,5 +266,10 @@ def test_tools_listing_exposes_only_available(client):
 
     exposed = {f"{c['input']}->{c['output']}" for c in tools["converter"]["capabilities"]}
     assert tools["converter"]["status"] == "available" and exposed == verified_keys()
-    for real in ("video_downloader", "background_remover", "object_remover"):
-        assert tools[real]["status"] == "coming_soon" and tools[real]["capabilities"] == []
+    # Phase 3B: AI tools expose exactly what app/tools/ai/verified.json lists
+    from app.tools.ai.verify import verified_keys as ai_verified
+
+    for tool_id in ("background_remover", "object_remover"):
+        exposed = {f"{tool_id}:{c['input']}->{c['output']}" for c in tools[tool_id]["capabilities"]}
+        assert exposed == {k for k in ai_verified() if k.startswith(f"{tool_id}:")} and exposed
+    assert tools["video_downloader"]["status"] == "coming_soon" and tools["video_downloader"]["capabilities"] == []

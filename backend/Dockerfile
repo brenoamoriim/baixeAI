@@ -51,3 +51,36 @@ COPY . .
 RUN mkdir -p /data/storage && chown -R app:app /data
 USER app
 CMD ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "media", "--loglevel=INFO", "--concurrency=1"]
+
+# ---- worker-ai: background removal + inpainting (CPU, ONNX Runtime) ------------------
+# Models are downloaded at BUILD time and pinned by SHA-256; the running worker has no internet.
+FROM base AS ai-models
+RUN python - <<'PY'
+import hashlib, os, urllib.request
+os.makedirs("/opt/models", exist_ok=True)
+MODELS = {
+    "isnet-general-use.onnx": ("https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-general-use.onnx",
+                               "60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a"),
+    "lama_fp32.onnx": ("https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx",
+                       "1faef5301d78db7dda502fe59966957ec4b79dd64e16f03ed96913c7a4eb68d6"),
+}
+for name, (url, sha) in MODELS.items():
+    path = f"/opt/models/{name}"
+    urllib.request.urlretrieve(url, path)
+    digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
+    if digest != sha:
+        raise SystemExit(f"checksum mismatch for {name}: {digest}")
+    print("ok", name)
+PY
+
+FROM base AS worker-ai
+# libvips-tools only for the upload probe (header read) so the image can run the full test flow.
+RUN apt-get update && apt-get install -y --no-install-recommends libvips-tools && rm -rf /var/lib/apt/lists/*
+COPY requirements-ai.txt requirements-dev.txt ./
+RUN pip install -r requirements-ai.txt -r requirements-dev.txt -c constraints.txt
+COPY --from=ai-models /opt/models /opt/models
+COPY . .
+RUN mkdir -p /data/storage && chown -R app:app /data
+ENV AI_MODEL_DIR=/opt/models AI_THREADS=2
+USER app
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "ai", "--loglevel=INFO", "--concurrency=1"]

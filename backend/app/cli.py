@@ -86,6 +86,7 @@ def seed() -> None:
                                priority=10),
             ])
         _sync_converter_capabilities(db)
+        _sync_ai_capabilities(db)
         if not get_settings().is_production:
             _insert_missing(db, ToolDefinition, [DEV_TOOL], "id")
             db.execute(
@@ -112,6 +113,22 @@ def _sync_converter_capabilities(db) -> None:
             .on_conflict_do_update(constraint="uq_tool_capabilities_io",
                                    set_={"status": status, "engine": c.engine, "notes": c.note(),
                                          "category": c.category})
+        )
+
+
+def _sync_ai_capabilities(db) -> None:
+    """Same rule for the AI tools: `available` only if app/tools/ai/verified.json lists it."""
+    from app.tools.ai import verify as ai_verify
+
+    verified = ai_verify.verified_keys()
+    engine = {"background_remover": "isnet-onnx", "object_remover": "lama-onnx"}
+    for c in ai_verify.candidates():
+        status = "available" if c.key in verified else "planned"
+        db.execute(
+            pg_insert(ToolCapability)
+            .values(id=uuid.uuid4(), tool_id=c.tool_id, category="image", input_format=c.input_format,
+                    output_format=c.output_format, status=status, engine=engine[c.tool_id], options_schema={})
+            .on_conflict_do_update(constraint="uq_tool_capabilities_io", set_={"status": status})
         )
 
 
