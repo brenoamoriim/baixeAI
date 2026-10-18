@@ -55,6 +55,22 @@ Atacantes: usuário abusivo (quer fichas grátis), bot (abuso do visitante, scra
 | `npm audit`: 5 "high" em dependências de **desenvolvimento** (`braces` via `eslint-config-next`); 0 em produção | A correção automática rebaixa o `eslint-config-next` para 14 (incompatível). Reavaliar a cada atualização do Next |
 | Rate limit em Redis por janela fixa | Simples; permite rajada na virada da janela. Aceito no MVP |
 
+## 3.2 Achados e controles da Fase 3A (conversores)
+
+| Achado / controle | Situação |
+|---|---|
+| `X-Forwarded-For` falsificável via proxy do Next (achado da Fase 2) | **Resolvido no desenho:** Caddy na frente encaminha `/api/*` direto à API e substitui o cabeçalho enviado pelo cliente. Testado em dev (4 visitantes com XFF falso → o 4º recebe 429). As portas 3000/8000 publicadas só em `127.0.0.1` continuam aceitando XFF do cliente: **uso exclusivo de desenvolvimento** |
+| Proxy do Next limita corpo a 10 MB e **bufferiza em memória** | Uploads não passam pelo Next (Caddy → API, gravação em disco em streaming). Limite 96 MB no Caddy + `Content-Length` checado na API antes de ler o corpo + contagem durante a cópia |
+| libvips do Debian inclui ImageMagick (`vips-magick.so`) | `VIPS_BLOCK_UNTRUSTED=1` em toda chamada; teste automatizado comprova o bloqueio |
+| SVG: XXE, scripts, referências externas | `defusedxml` (sem DTD/entidades), remoção de scripts/`foreignObject`/eventos/`href` externos/CSS; rasterização por `rsvg-convert` no sandbox, sem rede |
+| Bomba de pixels | dimensões lidas só do cabeçalho na inspeção, antes de cobrar; limite 40 MP; Pillow com `MAX_IMAGE_PIXELS` |
+| ZIP/OOXML bomba | limites de entradas, tamanho descompactado e razão de compressão na detecção |
+| FFmpeg lendo arquivos locais via playlist/concat | demuxer forçado pelo formato detectado + `-protocol_whitelist file`; teste com playlist disfarçada |
+| Macros (LibreOffice) | perfil por job com macros desativadas + worker sem rede. **Limitação do teste:** o controle com a proteção desligada também não executou a macro (o `--convert-to` headless parece não disparar o evento de abertura), então o teste é uma salvaguarda de regressão, não prova da configuração |
+| Injeção em opções | listas fechadas validadas no backend antes de cobrar; argumentos montados no servidor; sem shell (teste) |
+| Segredos no ambiente dos motores | o sandbox passa ambiente mínimo (teste). **Risco residual:** o processo do worker tem `DATABASE_URL`/`REDIS_URL` no próprio ambiente; um exploit no motor, rodando com o mesmo usuário, poderia ler `/proc/<pai>/environ`. Mitigação planejada (Fase 6): papel de banco com privilégio mínimo para os workers e/ou motor sob outro UID |
+| Workers | rede `internal` (sem internet), rootfs só leitura, `/tmp` em tmpfs, `cap_drop: ALL`, `no-new-privileges`, limites de memória e PIDs; rlimits por processo |
+
 ## 4. Riscos residuais (aceitos e documentados)
 
 1. **Zero-day** em FFmpeg/LibreOffice/libvips: mitigado por isolamento, não eliminado.

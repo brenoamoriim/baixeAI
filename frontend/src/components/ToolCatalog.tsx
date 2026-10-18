@@ -6,6 +6,11 @@ import { api, type Tool } from "@/lib/api";
 import { pluralFichas } from "@/lib/format";
 import { Alert, Badge } from "./ui";
 
+const TOOL_PAGES: Record<string, { href: string; label: string }> = {
+  converter: { href: "/conversores", label: "Abrir conversores" },
+  echo: { href: "/ferramentas/eco", label: "Abrir ferramenta de teste" },
+};
+
 /** Tools come from the backend registry: only `available` capabilities are usable. */
 export function ToolCatalog() {
   const [tools, setTools] = useState<Tool[] | null>(null);
@@ -35,9 +40,9 @@ export function ToolCatalog() {
             {tool.status === "available" ? (
               <>
                 <p className="text-sm text-slate-600">A partir de {pluralFichas(tool.base_cost)} por uso.</p>
-                {tool.id === "echo" && (
-                  <Link href="/ferramentas/eco" className="text-sm font-medium text-blue-700 hover:underline">
-                    Abrir ferramenta de teste
+                {TOOL_PAGES[tool.id] && (
+                  <Link href={TOOL_PAGES[tool.id].href} className="text-sm font-medium text-blue-700 hover:underline">
+                    {TOOL_PAGES[tool.id].label}
                   </Link>
                 )}
               </>

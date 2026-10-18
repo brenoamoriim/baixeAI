@@ -35,6 +35,10 @@ class ToolHandler(ABC):
     dev_only: bool = False
     requires_upload: bool = False
 
+    def public_info(self, db) -> dict[str, Any]:
+        """Extra data the UI needs (allowed options, limits). Never secrets."""
+        return {}
+
     def queue_for(self, category: str) -> str | None:
         """Celery queue for a capability category; None = the tool's default queue."""
         return None

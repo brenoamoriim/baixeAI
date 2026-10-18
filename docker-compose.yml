@@ -128,6 +128,18 @@ services:
       redis: { condition: service_healthy }
     networks: [internal]
 
+  # Entry point: http://localhost:8080 (same routing as production)
+  proxy:
+    image: caddy:2.11.7-alpine
+    volumes:
+      - ./infrastructure/caddy/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      - api
+      - frontend
+    networks: [edge]
+
   frontend:
     build: { context: ./frontend, target: dev }
     environment:

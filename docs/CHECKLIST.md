@@ -1,6 +1,6 @@
 # BaixeAI — Checklist do projeto
 
-> Memória do projeto entre sessões. Atualizado a cada entrega. Última atualização: **17/10/2026** (Fase 2).
+> Memória do projeto entre sessões. Atualizado a cada entrega. Última atualização: **18/10/2026** (Fase 3A).
 
 Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 
@@ -33,16 +33,25 @@ Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 - [x] Segurança base: headers, CORS restrito, erros genéricos com request id, logs JSON, `/healthz` e `/readyz`, recusa iniciar em produção sem segredos fortes
 - [x] Frontend pt-BR: início, entrar, cadastrar, recuperar/redefinir senha, verificar e-mail, painel (fichas por origem), componente genérico de ferramenta
 - [x] Testes executados: backend 70 (incl. 6 de concorrência real); frontend 9; lint/typecheck ok; imagens de produção construídas a partir de clone limpo
-- [ ] Pendências conhecidas → Fase 6: papel de banco sem superusuário para a API; Caddy sobrescrevendo `X-Forwarded-For`; provedor de e-mail real
-- [ ] Pendência → Fase 3A: endpoint de **estimativa de custo** antes de confirmar (hoje o painel mostra o custo base; o backend sempre recalcula); workers por fila (`light`, `media`, `ai`, `download`)
+- [ ] Pendências conhecidas → Fase 6: papel de banco sem superusuário para a API; provedor de e-mail real (Caddy sobrescrevendo `X-Forwarded-For`: feito em dev na 3A)
+- [x] ~~Pendência → Fase 3A: estimativa de custo e workers por fila~~ (feito na 3A; filas `ai` e `download` nas fases 3B/3C)
 - [ ] Pendência → Fase 4: criar assinatura/pacote pelo pagamento (hoje só via CLI)
 
-## Fase 3A — Conversores
-- [ ] Matriz real de codecs/filtros (amd64 + arm64)
-- [ ] Combinações `available` com teste real cada
-- [ ] Negativos de segurança
-- [ ] Medição de tempo/memória
-- [ ] UI `/conversores`
+## Fase 3A — Conversores (`phase-3a-conversores`) — ✅ concluída, aguardando aprovação
+
+- [x] Matriz real: FFmpeg 7.1.5, LibreOffice 25.2.3, libvips 8.16.1, poppler, rsvg verificados dentro das imagens `worker-light`/`worker-media` (amd64)
+- [x] **174 combinações `available`**, cada uma com conversão real automatizada (`verified.json` + `tests/engines/test_conversions.py`); 0 falhas
+- [x] Upload: detecção do formato real (assinatura/estrutura), limites por categoria (doc 25 MB, imagem 20 MB, áudio 50 MB, vídeo 95 MB/10 min), nome gerado no servidor, **inspeção em worker isolado antes de cobrar**
+- [x] Motores em sandbox (sem shell, ambiente mínimo, timeout, rlimits, kill do grupo); workers sem internet, rootfs só leitura, sem capabilities
+- [x] Segurança: libvips com loaders "untrusted" bloqueados (inclui ImageMagick); SVG sanitizado + `rsvg-convert`; bombas de pixel/ZIP; demuxer forçado no FFmpeg; macros desativadas (ver limitação do teste em `architecture/08` §3.2)
+- [x] API: upload, status do upload, estimativa de custo exata, criação de job (só `available`), download assinado + dono
+- [x] D1 aplicado: vídeo custa 2 fichas; MP4 só com áudio é tratado como áudio (1 ficha)
+- [x] Frontend `/conversores`: arrastar e soltar, catálogo pesquisável, só saídas disponíveis para o formato detectado, opções em listas fechadas, custo antes de confirmar, progresso, download, avisos de limitação
+- [x] Proxy Caddy em dev (porta 8080) igual à produção: uploads grandes funcionam e `X-Forwarded-For` falso é ignorado (testado)
+- [x] Medição real de tempo/memória (`architecture/02` §6) — máquina de dev x86, não ARM
+- [x] Testes: API 114 passed; worker-light 110 passed; worker-media 106 passed; frontend 14 passed
+- [ ] ARM64: LibreOffice/HEIC/tempos não medidos em ARM real → Fase 6
+- [ ] Workers ainda têm credenciais do banco no ambiente (risco residual) → papel de banco mínimo na Fase 6
 
 ## Fase 3B — IA de imagem
 - [ ] Licenças de código e pesos confirmadas

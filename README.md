@@ -3,8 +3,8 @@
 Plataforma web brasileira de utilitários online (freemium, moeda interna "ficha"):
 baixador de vídeos, conversores, removedor de fundo e removedor de objetos.
 
-> **Estado atual:** Fase 2 — fundação (auth, fichas, jobs, storage, shell do frontend).
-> As ferramentas reais ainda **não** existem: aparecem como "Em breve".
+> **Estado atual:** Fase 3A — **Conversores disponíveis** (174 combinações testadas com arquivos reais).
+> Baixador de vídeos, removedor de fundo e removedor de objetos ainda aparecem como "Em breve".
 > Veja [`docs/CHECKLIST.md`](docs/CHECKLIST.md) para o progresso.
 
 ## Rodar tudo (Windows 11 + Docker Desktop, PowerShell)
@@ -14,11 +14,13 @@ docker compose up --build
 ```
 
 Isso sobe: `db` (PostgreSQL), `redis`, `migrate` (aplica migrações + seed e encerra), `api`
-(FastAPI), `worker` e `beat` (Celery) e `frontend` (Next.js).
+(FastAPI), `worker`, `worker-light` (LibreOffice/libvips), `worker-media` (FFmpeg), `beat`
+(Celery), `frontend` (Next.js) e `proxy` (Caddy). A primeira construção demora (baixa LibreOffice e FFmpeg).
 
 | O quê | Endereço |
 |---|---|
-| Site | http://localhost:3000 |
+| **Site (use este)** | **http://localhost:8080** — mesmo roteamento da produção (`/api` direto para a API) |
+| Next.js direto (só para desenvolvimento de interface; uploads > 10 MB falham aqui) | http://localhost:3000 |
 | API (docs OpenAPI, só fora de produção) | http://localhost:8000/api/docs |
 | Saúde | http://localhost:8000/healthz · http://localhost:8000/readyz |
 
@@ -57,8 +59,23 @@ docker compose exec api python -m app.cli grant-lifetime --email x@y.com
 docker compose up -d db redis
 docker compose run --rm --build migrate pytest
 
+# testes com motores reais (conversões, negativos, fluxo completo)
+docker compose run --rm --build --no-deps worker-light pytest tests/engines -o addopts=""
+docker compose run --rm --build --no-deps worker-media pytest tests/engines -o addopts=""
+
 # frontend
 cd frontend; npm ci; npm test; npm run lint; npm run typecheck
+```
+
+### Conversores: o que fica disponível
+
+Uma combinação só aparece no site se estiver em `backend/app/tools/converter/verified.json`, gerado
+por conversão real dentro das imagens dos workers:
+
+```powershell
+docker compose run --rm --no-deps worker-light python -m app.tools.converter.verify --categories document,image
+docker compose run --rm --no-deps worker-media python -m app.tools.converter.verify --categories audio,video
+docker compose run --rm migrate python -m app.cli seed   # aplica o resultado ao banco
 ```
 
 ## Documentação

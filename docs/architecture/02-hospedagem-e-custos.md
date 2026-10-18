@@ -106,3 +106,31 @@ Leitura:
 | Imagem | 20 MB | — | 20 MB + teto de 40 MP decodificados |
 | IA | — | CPU apenas | entrada redimensionada a ≤ 2 MP (fundo) / ≤ 1 MP na região de inpainting; 1 job de IA por vez |
 | Concorrência | — | 2 OCPU | `worker-media` 1 processo, `worker-ai` 1, `worker-light` 2, `worker-download` 2 (I/O) |
+
+## 6. Medições reais (Fase 3A, 18/10/2026)
+
+Máquina: **Intel Core i5-8265U (8 threads), Docker Desktop/WSL2, x86_64** — máquina de desenvolvimento, **não** a VM Oracle ARM (medir lá na Fase 6). Motores limitados a 2 threads (FFmpeg) ou 1 (libvips). Dados brutos: `measurements/phase-3a-converters.json` (`python -m app.tools.converter.benchmark`).
+
+| Caso | Entrada | Tempo | Pico de memória do motor |
+|---|---|---|---|
+| DOCX → PDF (~15 páginas) | 10 KB | 1,9 s | 218 MB |
+| PDF → DOCX (mesmo doc) | 150 KB | 9,1 s | 258 MB |
+| XLSX → CSV (50 mil linhas) | 1 MB | 1,7 s | 218 MB |
+| JPG 12 MP → WEBP | 6,6 MB | 2,5 s | 211 MB |
+| JPG 12 MP → AVIF (effort=2) | 6,6 MB | 7,8 s | 288 MB |
+| JPG 12 MP → PNG | 6,6 MB | 3,9 s | 49 MB |
+| WAV 5 min → MP3 | 50 MB | 4,3 s | 58 MB |
+| MP4 720p 60 s → MP4 480p | 20 MB | 9,2 s | 178 MB |
+| MOV 720p 60 s → MP4 (H.264) | 20 MB | 12,8 s | 274 MB |
+| MP4 720p 60 s → WEBM (VP9 realtime) | 20 MB | 16,9 s | 286 MB |
+| MP4 720p 60 s → MP3 (extrair áudio) | 20 MB | 0,8 s | 59 MB |
+| MP4 720p 60 s → GIF (15 s) | 20 MB | 8,2 s | 436 MB |
+
+Revisão das hipóteses do §3:
+| Hipótese | Antes | Medido (dev) |
+|---|---|---|
+| H1 imagem/documento | 3 core-s | 2–8 core-s (AVIF e PDF→DOCX no topo) |
+| H2 áudio | 5 core-s | ~4–5 s para 5 min de áudio |
+| H3 vídeo | 120 core-s por vídeo curto | **~26 core-s por minuto de 720p** (13 s × 2 threads); vídeo de 10 min ≈ 130 s de relógio (~260 core-s) |
+
+Leitura: com vídeos de 1–2 min, o custo real fica abaixo da H3; com vídeos de 10 min em 720p, fica ~2× acima. A recomendação de **2 fichas para vídeo (D1)** se mantém. Memória: nenhum caso passou de ~450 MB por motor, o que cabe com folga nos 12 GB da Oracle. ARM pode ser mais lento por núcleo: **NÃO VERIFICADO** até a Fase 6.

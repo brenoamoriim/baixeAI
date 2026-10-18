@@ -2,6 +2,81 @@
 
 > Fase 1 · 17/10/2026. Nenhuma combinação abaixo está `available` ainda: todas são **candidatas**. Viram `available` só com teste de motor verde (Fases 3A–3C).
 
+## 0. Resultado da Fase 3A (18/10/2026)
+
+**174 combinações `available`**, todas aprovadas por conversão real nas imagens `worker-light` e `worker-media` (`backend/app/tools/converter/verified.json`, gerado por `python -m app.tools.converter.verify`). Nenhuma candidata ficou de fora; as combinações não listadas abaixo simplesmente não existem no catálogo de lançamento.
+
+**Documentos** (12)
+
+| Entrada | Saídas `available` |
+|---|---|
+| csv | xlsx |
+| doc | docx, pdf |
+| docx | pdf |
+| html | pdf |
+| odt | pdf |
+| pdf | docx, txt |
+| rtf | pdf |
+| txt | pdf |
+| xls | csv |
+| xlsx | csv |
+
+**Imagens** (72)
+
+| Entrada | Saídas `available` |
+|---|---|
+| avif | bmp, gif, ico, jpg, png, tiff, webp |
+| bmp | avif, gif, ico, jpg, png, tiff, webp |
+| gif | avif, bmp, ico, jpg, png, tiff, webp |
+| heic | avif, bmp, gif, ico, jpg, png, tiff, webp |
+| ico | avif, bmp, gif, jpg, png, tiff, webp |
+| jpg | avif, bmp, gif, ico, png, tiff, webp |
+| png | avif, bmp, gif, ico, jpg, tiff, webp |
+| svg | avif, bmp, gif, ico, jpg, png, tiff, webp |
+| tiff | avif, bmp, gif, ico, jpg, png, webp |
+| webp | avif, bmp, gif, ico, jpg, png, tiff |
+
+**Áudio** (30)
+
+| Entrada | Saídas `available` |
+|---|---|
+| flac | m4a, mp3, ogg, opus, wav |
+| m4a | flac, mp3, ogg, opus, wav |
+| mp3 | flac, m4a, ogg, opus, wav |
+| ogg | flac, m4a, mp3, opus, wav |
+| opus | flac, m4a, mp3, ogg, wav |
+| wav | flac, m4a, mp3, ogg, opus |
+
+**Vídeo** (60)
+
+| Entrada | Saídas `available` |
+|---|---|
+| avi | avi, flac, gif, m4a, mkv, mov, mp3, mp4, ogg, opus, wav, webm |
+| mkv | avi, flac, gif, m4a, mkv, mov, mp3, mp4, ogg, opus, wav, webm |
+| mov | avi, flac, gif, m4a, mkv, mov, mp3, mp4, ogg, opus, wav, webm |
+| mp4 | avi, flac, gif, m4a, mkv, mov, mp3, mp4, ogg, opus, wav, webm |
+| webm | avi, flac, gif, m4a, mkv, mov, mp3, mp4, ogg, opus, wav, webm |
+
+Como cada combinação é provada (mesmo código de produção, `ConverterHandler.execute`):
+- arquivo de entrada gerado pelos próprios motores (HEIC: amostra versionada `fixtures/sample.heic`, pois a imagem não tem codificador HEVC);
+- saída conferida pela assinatura real (`file_sniffing`), e mais: documentos → texto marcador presente; imagens → mesmas dimensões (ICO ≤ 256 px); áudio/vídeo → `ffprobe` com duração ± 0,35 s e faixas corretas; vídeo→GIF ≤ 480 px.
+- os mesmos casos rodam como testes pytest parametrizados (`tests/engines/test_conversions.py`).
+
+Mudanças em relação ao plano da Fase 1:
+| Item | Mudança | Motivo |
+|---|---|---|
+| ImageMagick | libvips do Debian **inclui** o módulo `vips-magick`; todas as chamadas usam `VIPS_BLOCK_UNTRUSTED=1` (bloqueia magick, PDF, SVG, FITS, PPM, `.v` etc.) | Superfície de ataque (teste `test_imagemagick_and_untrusted_loaders_are_blocked`) |
+| SVG | rasterizado por `rsvg-convert` (sandbox) após sanitização com `defusedxml` | o loader SVG do libvips é "untrusted" |
+| Pandoc | **não usado** | LibreOffice cobre HTML/TXT→PDF; menos um motor |
+| PDF → DOCX | LibreOffice (`writer_pdf_import`), com aviso de perda de layout (D9) | sem AGPL |
+| Vídeo X → X | incluído (recodificar com resolução/qualidade/fps) | opções do PRD §6.2 só fazem sentido com recodificação |
+| AVIF | `effort=2` | 12 MP: 46,8 s → 7,8 s com tamanho igual |
+| MP4 só com áudio | reclassificado como M4A na inspeção (custo de áudio, 1 ficha) | conteúdo real manda |
+
+Limitações exibidas ao usuário: PDF→DOCX perde layout; PDF escaneado não tem texto (sem OCR); XLS/XLSX→CSV só a 1ª planilha; HTML sem recursos externos; GIF animado → 1º quadro; vídeo→GIF ≤ 15 s, 480 px, 10 fps.
+
+`planned` (não oferecidos): saída em HEVC/AV1/XviD como codecs, HEIC como saída, ImageMagick, OCR.
+
 ## 1. Registry de capacidades
 
 - `tool_definitions` (ferramenta, custo em fichas, fila) + `tool_capabilities` (entrada → saída, `status`, motor, `options_schema`).

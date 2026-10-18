@@ -8,7 +8,7 @@
 
 ```
 Internet → Cloudflare (DNS + proxy, Free) → VM Oracle Ampere A1 (ARM64, Ubuntu LTS)
-             └─ Caddy :443 → frontend / api
+             └─ Caddy :443 → /api/* direto para a api (uploads em streaming) · resto → frontend
                 docker compose: db, redis, api, frontend, beat, worker-light, worker-media, worker-ai, worker-download
 ```
 

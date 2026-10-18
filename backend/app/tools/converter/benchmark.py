@@ -14,7 +14,6 @@ import platform
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 from app.security.sandbox import Limits, run
@@ -69,9 +68,11 @@ def _make_inputs(group: str, root: Path) -> dict[str, Path]:
              "-b:a", "192k", "-y", str(root / "big.mp3")], cwd=root, limits=LIMITS)
         files["mp3"] = root / "big.mp3"
         for fmt, mux in (("mp4", "mp4"), ("mov", "mov")):
-            run(["ffmpeg", "-nostdin", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=duration=60:size=1280x720:rate=30",
-                 "-f", "lavfi", "-i", "sine=frequency=440:duration=60", "-shortest", "-c:v", "libx264", "-preset", "veryfast",
-                 "-pix_fmt", "yuv420p", "-c:a", "aac", "-f", mux, "-y", str(root / f"big.{fmt}")], cwd=root, limits=LIMITS)
+            run(["ffmpeg", "-nostdin", "-loglevel", "error",
+                 "-f", "lavfi", "-i", "testsrc2=duration=60:size=1280x720:rate=30",
+                 "-f", "lavfi", "-i", "sine=frequency=440:duration=60", "-shortest",
+                 "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                 "-f", mux, "-y", str(root / f"big.{fmt}")], cwd=root, limits=LIMITS)
             files[fmt] = root / f"big.{fmt}"
     return files
 

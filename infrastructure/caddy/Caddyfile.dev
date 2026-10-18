@@ -1,0 +1,28 @@
+# Development entry point mirroring production routing (docs/architecture/10-deploy.md):
+#   /api/*  -> FastAPI directly (uploads are streamed, never buffered by Next.js)
+#   rest    -> Next.js
+# Caddy replaces any client-supplied X-Forwarded-For (clients are not trusted proxies), so the API
+# (TRUSTED_PROXY_HOPS=1) sees the real client IP.
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	@upload path /api/v1/uploads
+	@other not path /api/v1/uploads
+
+	request_body @upload {
+		max_size 96MB
+	}
+	request_body @other {
+		max_size 1MB
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

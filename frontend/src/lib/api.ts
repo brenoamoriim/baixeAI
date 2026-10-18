@@ -66,6 +66,20 @@ export async function api<T>(
   return (await response.json()) as T;
 }
 
+/** Multipart upload (the browser sets the boundary; the backend sniffs the real format). */
+export async function uploadFile(file: File): Promise<Upload> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch("/api/v1/uploads", {
+    method: "POST",
+    headers: { "X-CSRF-Token": await csrfToken(), Accept: "application/json" },
+    credentials: "same-origin",
+    body: form,
+  });
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as Upload;
+}
+
 export function newIdempotencyKey(): string {
   return crypto.randomUUID().replaceAll("-", "");
 }
@@ -96,12 +110,32 @@ export type Credits = {
   buckets: Bucket[];
 };
 
+export type Capability = { category: string; input: string; output: string; note: string | null };
+
 export type Tool = {
   id: string;
   name: string;
   base_cost: number;
   status: "available" | "coming_soon";
-  capabilities: { category: string; input: string; output: string }[];
+  capabilities: Capability[];
+  info?: {
+    options?: Record<string, Record<string, string[]>>;
+    limits_bytes?: Record<string, number>;
+    video_max_seconds?: number;
+  };
+};
+
+export type Upload = {
+  id: string;
+  status: "probing" | "ready" | "rejected";
+  format: string;
+  category: "document" | "image" | "audio" | "video";
+  size_bytes: number;
+  original_name: string;
+  error_code: string | null;
+  error_message: string | null;
+  expires_at: string;
+  info: { width?: number; height?: number; pages?: number; duration_seconds?: number; has_audio?: boolean; has_video?: boolean };
 };
 
 export type Job = {

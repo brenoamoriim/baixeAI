@@ -24,6 +24,12 @@ class ConverterHandler(ToolHandler):
     tool_id = "converter"
     requires_upload = True
 
+    def public_info(self, db) -> dict:
+        from app.services.settings import get_setting
+
+        return {"options": OPTION_SETS, "limits_bytes": get_setting(db, "limits_bytes"),
+                "video_max_seconds": get_setting(db, "video_max_seconds")}
+
     def queue_for(self, category: str) -> str | None:
         return matrix.QUEUE_BY_CATEGORY.get(category)
 
