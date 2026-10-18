@@ -14,7 +14,8 @@ class EchoHandler(ToolHandler):
     tool_id = "echo"
     dev_only = True
 
-    def validate_options(self, input_format: str, output_format: str, options: dict) -> dict:
+    def validate_options(self, input_format: str, output_format: str, options: dict,
+                         upload_meta: dict | None) -> dict:
         text = options.get("text")
         if not isinstance(text, str) or not text.strip():
             raise AppError("Informe um texto.", code="invalid_options")
@@ -25,7 +26,8 @@ class EchoHandler(ToolHandler):
             raise AppError("Simulação inválida.", code="invalid_options")
         return {"text": text, "simulate": simulate}
 
-    def execute(self, options: dict, work_dir: Path) -> ToolResult:
+    def execute(self, input_format: str, output_format: str, options: dict, work_dir: Path,
+                input_path: Path | None, input_meta: dict) -> ToolResult:
         simulate = options["simulate"]
         if simulate == "user_error":
             raise ToolUserError("invalid_content", "Conteúdo inválido (simulado).")

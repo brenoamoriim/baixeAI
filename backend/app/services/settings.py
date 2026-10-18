@@ -36,7 +36,11 @@ DEFAULTS: dict[str, tuple[Any, str]] = {
         },
         "Limites de upload por categoria (PRD §6.2, D10)",
     ),
-    "video_max_seconds": (600, "Duração máxima de vídeo"),
+    "video_max_seconds": (600, "Duração máxima de vídeo (segundos)"),
+    "video_max_pixels": (3840 * 2160, "Resolução máxima de vídeo (pixels por quadro)"),
+    "audio_max_seconds": (3600, "Duração máxima de áudio (segundos)"),
+    "image_max_pixels": (40_000_000, "Resolução máxima de imagem (pixels)"),
+    "doc_max_pages": (300, "Máximo de páginas de PDF"),
 }
 
 

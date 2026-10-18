@@ -18,6 +18,7 @@ celery.conf.update(
         "expire-credit-buckets": {"task": "maintenance.expire_buckets", "schedule": 300.0},
         "sweep-stuck-jobs": {"task": "maintenance.sweep_stuck_jobs", "schedule": 300.0},
         "cleanup-expired-outputs": {"task": "maintenance.cleanup_outputs", "schedule": 600.0},
+        "cleanup-expired-uploads": {"task": "maintenance.cleanup_uploads", "schedule": 600.0},
         "ledger-reconciliation": {"task": "maintenance.ledger_reconciliation", "schedule": 86400.0},
     },
 )

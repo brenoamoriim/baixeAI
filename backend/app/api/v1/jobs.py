@@ -72,6 +72,21 @@ def _serialize(job: ProcessingJob) -> dict:
     }
 
 
+@router.post("/estimate")
+def estimate_cost(
+    body: CreateJob,
+    request: Request,
+    response: Response,
+    user: User | None = Depends(current_user_optional),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Exact cost the backend will charge (shown before the user confirms)."""
+    cost = job_service.estimate(db, actor_for(request, response, user), tool_id=body.tool_id,
+                                input_format=body.input_format, output_format=body.output_format,
+                                options=body.options)
+    return {"cost": cost}
+
+
 @router.post("", status_code=201)
 def create_job(
     body: CreateJob,

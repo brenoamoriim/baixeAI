@@ -33,15 +33,22 @@ class ToolResult:
 class ToolHandler(ABC):
     tool_id: str
     dev_only: bool = False
+    requires_upload: bool = False
+
+    def queue_for(self, category: str) -> str | None:
+        """Celery queue for a capability category; None = the tool's default queue."""
+        return None
 
     @abstractmethod
-    def validate_options(self, input_format: str, output_format: str, options: dict) -> dict:
-        """Validate before any charge. Raise AppError (422) on invalid input."""
+    def validate_options(self, input_format: str, output_format: str, options: dict,
+                         upload_meta: dict | None) -> dict:
+        """Validate before any charge. Raise AppError on invalid input."""
 
-    def metadata(self, options: dict) -> dict[str, Any]:
+    def metadata(self, options: dict, upload_meta: dict | None) -> dict[str, Any]:
         """Facts used for pricing (e.g. duration). Must come from the server, not the client."""
         return {}
 
     @abstractmethod
-    def execute(self, options: dict, work_dir: Path) -> ToolResult:
+    def execute(self, input_format: str, output_format: str, options: dict, work_dir: Path,
+                input_path: Path | None, input_meta: dict) -> ToolResult:
         """Run the operation inside `work_dir`. Raise ToolUserError/ToolSystemError on failure."""

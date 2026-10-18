@@ -30,7 +30,7 @@ from app.models import (
     UsageRecord,
 )
 from app.security.crypto import keyed_hash
-from app.services import credits, guests
+from app.services import credits, guests, uploads
 from app.services.settings import get_setting
 from app.storage.base import get_storage, new_key
 from app.tools.base import ToolSystemError, ToolUserError
@@ -98,6 +98,55 @@ def credit_cost(
 # --------------------------------------------------------------------------- creation
 
 
+@dataclass
+class Prepared:
+    """Everything decided BEFORE charging: validated options, price, queue and input file."""
+
+    tool: ToolDefinition
+    capability: ToolCapability
+    options: dict
+    cost: int
+    queue: str
+    input_key: str | None = None
+    input_meta: dict | None = None
+
+
+def prepare(db: Session, actor: Actor, tool_id: str, input_format: str, output_format: str,
+            options: dict) -> Prepared:
+    tool, capability = available_capability(db, tool_id, input_format, output_format)
+    handler = get_handler(tool_id)
+    upload = None
+    if handler.requires_upload:
+        try:
+            upload_id = uuid.UUID(str(options.get("upload_id")))
+        except ValueError:
+            raise AppError("Envie um arquivo primeiro.", code="upload_required") from None
+        upload = uploads.get_owned(db, actor, upload_id)
+        if upload.status == "probing":
+            raise AppError("O arquivo ainda está sendo analisado. Aguarde.", code="upload_not_ready")
+        if upload.status != "ready":
+            raise AppError(upload.error_message or "Arquivo recusado.", code=upload.error_code or "upload_rejected")
+        if upload.format != input_format:
+            raise AppError("O formato escolhido não corresponde ao conteúdo do arquivo.", code="format_mismatch")
+    upload_meta = upload.meta if upload else None
+    clean_options = handler.validate_options(input_format, output_format, options, upload_meta)
+    cost = credit_cost(db, tool, capability, handler.metadata(clean_options, upload_meta))
+    prepared = Prepared(tool=tool, capability=capability, options=clean_options, cost=cost,
+                        queue=handler.queue_for(capability.category) or tool.queue)
+    if upload is not None:
+        prepared.input_key = upload.storage_key
+        prepared.input_meta = {**upload.meta, "original_name": upload.original_name,
+                               "format": upload.format, "size_bytes": upload.size_bytes}
+    return prepared
+
+
+def estimate(db: Session, actor: Actor, *, tool_id: str, input_format: str, output_format: str,
+             options: dict) -> int:
+    """Cost the backend WILL charge for this request (same rules as create_job)."""
+    with db.begin():
+        return prepare(db, actor, tool_id, input_format, output_format, options).cost
+
+
 def create_job(
     db: Session,
     actor: Actor,
@@ -113,18 +162,11 @@ def create_job(
     try:
         with db.begin():
             # Validation and pricing happen before any reservation: invalid input costs nothing.
-            tool, capability = available_capability(db, tool_id, input_format, output_format)
-            handler = get_handler(tool_id)
-            clean_options = handler.validate_options(input_format, output_format, options)
-            cost = credit_cost(db, tool, capability, handler.metadata(clean_options))
+            prepared = prepare(db, actor, tool_id, input_format, output_format, options)
             if actor.user_id is not None:
-                job, created = _create_for_user(
-                    db, actor, tool, capability, clean_options, cost, idempotency_key, at
-                )
+                job, created = _create_for_user(db, actor, prepared, idempotency_key, at)
             else:
-                job, created = _create_for_guest(
-                    db, actor, tool, capability, clean_options, cost, idempotency_key, at
-                )
+                job, created = _create_for_guest(db, actor, prepared, idempotency_key, at)
     except IntegrityError:
         # A concurrent request with the same idempotency key won the race.
         db.rollback()
@@ -156,23 +198,24 @@ def _find_existing(db: Session, actor: Actor, key: str) -> ProcessingJob | None:
     ).scalar_one_or_none()
 
 
-def _new_job(tool, capability, options, cost, key, charged_from, **owner) -> ProcessingJob:
+def _new_job(p: Prepared, key: str, charged_from: str, **owner) -> ProcessingJob:
     return ProcessingJob(
         id=uuid.uuid4(),
-        tool_id=tool.id,
-        capability_id=capability.id,
+        tool_id=p.tool.id,
+        capability_id=p.capability.id,
         status="queued",
         charged_from=charged_from,
-        credit_cost=cost,
+        credit_cost=p.cost,
         idempotency_key=key,
-        options=options,
-        input_meta={},
-        queue=tool.queue,
+        options=p.options,
+        input_key=p.input_key,
+        input_meta=p.input_meta or {},
+        queue=p.queue,
         **owner,
     )
 
 
-def _create_for_user(db, actor, tool, capability, options, cost, key, at):
+def _create_for_user(db, actor, p: Prepared, key, at):
     user = credits.lock_user(db, actor.user_id)
     existing = _find_existing(db, actor, key)
     if existing is not None:
@@ -188,17 +231,17 @@ def _create_for_user(db, actor, tool, capability, options, cost, key, at):
 
     if credits.has_lifetime(db, user.id):
         _check_lifetime_fair_use(db, user.id, active_jobs, at)
-        job = _new_job(tool, capability, options, cost, key, "lifetime", user_id=user.id)
+        job = _new_job(p, key, "lifetime", user_id=user.id)
         db.add(job)
         db.flush()
         return job, True
 
     if active_jobs >= int(get_setting(db, "max_pending_jobs_per_user")):
         raise RateLimited("Você já tem processamentos em andamento. Aguarde terminarem.")
-    job = _new_job(tool, capability, options, cost, key, "credits", user_id=user.id)
+    job = _new_job(p, key, "credits", user_id=user.id)
     db.add(job)
     db.flush()
-    credits.reserve(db, user, tool_id=tool.id, amount=cost, job_id=job.id,
+    credits.reserve(db, user, tool_id=p.tool.id, amount=p.cost, job_id=job.id,
                     idempotency_key=key, at=at)
     return job, True
 
@@ -220,7 +263,7 @@ def _check_lifetime_fair_use(db: Session, user_id: uuid.UUID, active_jobs: int, 
         raise FairUseLimit("Limite diário de uso justo do plano vitalício atingido.")
 
 
-def _create_for_guest(db, actor, tool, capability, options, cost, key, at):
+def _create_for_guest(db, actor, p: Prepared, key, at):
     if not actor.guest_anon_id:
         raise AppError("Sessão de visitante ausente.", code="guest_cookie_missing")
     allowance = guests.get_or_create_allowance(db, actor.guest_anon_id, actor.ip, at)
@@ -231,8 +274,8 @@ def _create_for_guest(db, actor, tool, capability, options, cost, key, at):
     ).scalar_one_or_none()
     if existing is not None:
         return existing, False
-    job = _new_job(tool, capability, options, cost, key, "guest", guest_allowance_id=allowance.id)
-    guests.reserve(db, allowance, amount=cost, job_id=job.id)
+    job = _new_job(p, key, "guest", guest_allowance_id=allowance.id)
+    guests.reserve(db, allowance, amount=p.cost, job_id=job.id)
     db.add(job)
     db.flush()
     return job, True
@@ -268,13 +311,23 @@ def run(db: Session, job_id: uuid.UUID) -> None:
         job.started_at = clock.now()
         options = dict(job.options)
         tool_id = job.tool_id
+        capability = db.get(ToolCapability, job.capability_id)
+        input_format, output_format = capability.input_format, capability.output_format
+        input_key, input_meta = job.input_key, dict(job.input_meta)
 
     handler = get_handler(tool_id)
     work_dir = Path(tempfile.mkdtemp(prefix="job-"))
     try:
         if handler is None:
             raise ToolSystemError("handler_missing")
-        result = handler.execute(options, work_dir)
+        input_path = None
+        if input_key:
+            input_path = work_dir / f"input.{input_format}"
+            try:
+                shutil.copyfile(get_storage().open_path(input_key), input_path)
+            except (FileNotFoundError, ValueError):
+                raise ToolSystemError("input_missing") from None
+        result = handler.execute(input_format, output_format, options, work_dir, input_path, input_meta)
         key = new_key(f"jobs/{job_id.hex}", result.output_path.suffix.lstrip("."))
         get_storage().save_file(key, result.output_path)
         complete_job(db, job_id, output_key=key, filename=result.filename)

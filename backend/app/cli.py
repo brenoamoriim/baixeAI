@@ -31,6 +31,7 @@ from app.models import (
 from app.security.crypto import hash_password
 from app.services import credits
 from app.services.settings import DEFAULTS
+from app.tools.converter import matrix
 
 PLANS = [
     {"code": "free", "name": "Gratuita", "kind": "free", "price_cents": 0},
@@ -84,6 +85,7 @@ def seed() -> None:
                 CreditCostRule(tool_id="video_downloader", min_duration_seconds=121, cost=2,
                                priority=10),
             ])
+        _sync_converter_capabilities(db)
         if not get_settings().is_production:
             _insert_missing(db, ToolDefinition, [DEV_TOOL], "id")
             db.execute(
@@ -94,6 +96,23 @@ def seed() -> None:
                 .on_conflict_do_nothing(constraint="uq_tool_capabilities_io")
             )
     print("seed ok")
+
+
+def _sync_converter_capabilities(db) -> None:
+    """Availability follows verification: only combinations listed in verified.json (a real
+    conversion passed in the worker image) are `available`; every other candidate is `planned`."""
+    verified = matrix.verified_keys()
+    for c in matrix.candidates():
+        status = "available" if c.key in verified else "planned"
+        db.execute(
+            pg_insert(ToolCapability)
+            .values(id=uuid.uuid4(), tool_id="converter", category=c.category, input_format=c.input_format,
+                    output_format=c.output_format, status=status, engine=c.engine, options_schema={},
+                    notes=c.note())
+            .on_conflict_do_update(constraint="uq_tool_capabilities_io",
+                                   set_={"status": status, "engine": c.engine, "notes": c.note(),
+                                         "category": c.category})
+        )
 
 
 def _user(db, email: str) -> User:

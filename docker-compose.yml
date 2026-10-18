@@ -82,6 +82,43 @@ services:
       redis: { condition: service_healthy }
     networks: [internal]
 
+  # Conversion workers: internal network only (no internet), hardened, resource-capped.
+  worker-light:
+    build: { context: ./backend, target: worker-light }
+    environment: *backend-env
+    volumes:
+      - ./backend:/app
+      - storage:/data/storage
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 3g
+    pids_limit: 256
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    networks: [internal]
+
+  worker-media:
+    build: { context: ./backend, target: worker-media }
+    environment: *backend-env
+    volumes:
+      - ./backend:/app
+      - storage:/data/storage
+    tmpfs:
+      - /tmp:size=2g,mode=1777
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 3g
+    pids_limit: 128
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    networks: [internal]
+
   beat:
     build: { context: ./backend, target: dev }
     command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]

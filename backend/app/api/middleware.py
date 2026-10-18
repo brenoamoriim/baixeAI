@@ -14,6 +14,11 @@ SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 CSRF_EXEMPT_PREFIXES = ("/api/webhooks/",)  # authenticated by provider signature instead
 
 
+def _reject(status: int, code: str, message: str, request_id: str) -> JSONResponse:
+    return JSONResponse(status_code=status, content={"error": {"code": code, "message": message}},
+                        headers={"X-Request-ID": request_id})
+
+
 class SecurityMiddleware(BaseHTTPMiddleware):
     """Request id, CSRF double-submit check for state-changing requests, security headers."""
 
@@ -21,6 +26,13 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         request_id = uuid.uuid4().hex
         request.state.request_id = request_id
         settings = get_settings()
+
+        if request.method == "POST" and request.url.path == "/api/v1/uploads":
+            length = request.headers.get("content-length")
+            if length is None or not length.isdigit():
+                return _reject(411, "length_required", "Envio sem tamanho informado.", request_id)
+            if int(length) > settings.max_upload_body_bytes:
+                return _reject(413, "file_too_large", "Arquivo grande demais (máximo 95 MB).", request_id)
 
         if request.method not in SAFE_METHODS and not request.url.path.startswith(
             CSRF_EXEMPT_PREFIXES

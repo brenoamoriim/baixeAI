@@ -11,3 +11,6 @@ redis==8.1.0
 celery==5.6.3
 argon2-cffi==25.1.0
 python-multipart==0.0.32
+Pillow==13.0.0
+olefile==0.47
+defusedxml==0.7.1

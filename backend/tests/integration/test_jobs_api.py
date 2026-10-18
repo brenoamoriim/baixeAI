@@ -64,7 +64,7 @@ def test_user_input_failure_is_charged(client):
 def test_timeout_refunds(client, monkeypatch):
     from app.tools.echo.handler import EchoHandler
 
-    def boom(self, options, work_dir):
+    def boom(self, *args, **kwargs):
         raise TimeoutError
 
     monkeypatch.setattr(EchoHandler, "execute", boom)

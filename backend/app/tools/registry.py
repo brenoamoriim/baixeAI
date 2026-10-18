@@ -3,11 +3,12 @@ AND a handler is registered here (docs/architecture/07 §1)."""
 
 from app.core.config import get_settings
 from app.tools.base import ToolHandler
+from app.tools.converter.handler import ConverterHandler
 from app.tools.echo.handler import EchoHandler
 
 
 def _build() -> dict[str, ToolHandler]:
-    handlers: list[ToolHandler] = [EchoHandler()]
+    handlers: list[ToolHandler] = [EchoHandler(), ConverterHandler()]
     production = get_settings().is_production
     return {h.tool_id: h for h in handlers if not (h.dev_only and production)}
 

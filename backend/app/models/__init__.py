@@ -18,6 +18,7 @@ from app.models.credits import (
 )
 from app.models.identity import EmailToken, TermsAcceptance, User, UserSession
 from app.models.jobs import AuditEvent, ProcessingJob, UsageRecord
+from app.models.uploads import Upload
 
 __all__ = [
     "AuditEvent",
@@ -42,6 +43,7 @@ __all__ = [
     "ToolCapability",
     "ToolDefinition",
     "UsageRecord",
+    "Upload",
     "User",
     "UserSession",
 ]

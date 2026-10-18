@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # Dev: Next.js rewrite (1). Production with Caddy -> Next -> API: set accordingly.
     trusted_proxy_hops: int = 0
 
+    # Hard cap on any upload request body, checked from Content-Length before reading it.
+    max_upload_body_bytes: int = 96 * 1024 * 1024
+
     celery_task_always_eager: bool = False
 
     @model_validator(mode="after")
