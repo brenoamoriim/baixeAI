@@ -77,9 +77,8 @@ def candidates() -> list[Candidate]:
                 items.append(Candidate(src, dst, "audio", "ffmpeg"))
 
     for src in VIDEO_FORMATS:
-        for dst in VIDEO_FORMATS:
-            if src != dst:
-                items.append(Candidate(src, dst, "video", "ffmpeg"))
+        for dst in VIDEO_FORMATS:  # same format = re-encode (resolution / quality / fps options)
+            items.append(Candidate(src, dst, "video", "ffmpeg"))
         for dst in ("mp3", "m4a", "wav", "ogg", "opus", "flac"):  # extract audio
             items.append(Candidate(src, dst, "video", "ffmpeg"))
         items.append(Candidate(src, "gif", "video", "ffmpeg"))

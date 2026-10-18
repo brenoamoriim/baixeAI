@@ -1,0 +1,146 @@
+{
+  "measured_at": "2026-10-18",
+  "note": "Dev machine via Docker Desktop (WSL2). Engines limited to 2 threads. Not the Oracle ARM host.",
+  "groups": {
+    "light": {
+      "machine": {
+        "cpu": "Intel(R) Core(TM) i5-8265U CPU @ 1.60GHz",
+        "nproc": 8,
+        "arch": "x86_64"
+      },
+      "results": [
+        {
+          "case": "docx->pdf",
+          "options": {},
+          "input_mb": 0.01,
+          "seconds": 1.86,
+          "peak_mb": 218.0,
+          "output_mb": 0.15
+        },
+        {
+          "case": "pdf->docx",
+          "options": {},
+          "input_mb": 0.15,
+          "seconds": 9.08,
+          "peak_mb": 257.6,
+          "output_mb": 0.12
+        },
+        {
+          "case": "xlsx->csv",
+          "options": {},
+          "input_mb": 1.05,
+          "seconds": 1.69,
+          "peak_mb": 218.2,
+          "output_mb": 1.23
+        },
+        {
+          "case": "jpg->webp",
+          "options": {},
+          "input_mb": 6.62,
+          "seconds": 2.54,
+          "peak_mb": 210.7,
+          "output_mb": 4.9
+        },
+        {
+          "case": "jpg->avif",
+          "options": {},
+          "input_mb": 6.62,
+          "seconds": 7.8,
+          "peak_mb": 287.5,
+          "output_mb": 5.79
+        },
+        {
+          "case": "jpg->png",
+          "options": {},
+          "input_mb": 6.62,
+          "seconds": 3.91,
+          "peak_mb": 49.4,
+          "output_mb": 14.67
+        },
+        {
+          "case": "heic->jpg",
+          "options": {},
+          "input_mb": 0.0,
+          "seconds": 0.51,
+          "peak_mb": 36.6,
+          "output_mb": 0.0
+        },
+        {
+          "case": "png->ico",
+          "options": {},
+          "input_mb": 14.67,
+          "seconds": 5.59,
+          "peak_mb": 42.4,
+          "output_mb": 0.04
+        }
+      ]
+    },
+    "media": {
+      "machine": {
+        "cpu": "Intel(R) Core(TM) i5-8265U CPU @ 1.60GHz",
+        "nproc": 8,
+        "arch": "x86_64"
+      },
+      "results": [
+        {
+          "case": "wav->mp3",
+          "options": {},
+          "input_mb": 50.47,
+          "seconds": 4.33,
+          "peak_mb": 58.2,
+          "output_mb": 6.87
+        },
+        {
+          "case": "mp3->opus",
+          "options": {},
+          "input_mb": 6.87,
+          "seconds": 5.21,
+          "peak_mb": 57.5,
+          "output_mb": 6.87
+        },
+        {
+          "case": "mp4->mp4",
+          "options": {
+            "resolution": "480"
+          },
+          "input_mb": 20.48,
+          "seconds": 9.18,
+          "peak_mb": 178.4,
+          "output_mb": 5.32
+        },
+        {
+          "case": "mp4->webm",
+          "options": {},
+          "input_mb": 20.48,
+          "seconds": 16.85,
+          "peak_mb": 285.5,
+          "output_mb": 26.46
+        },
+        {
+          "case": "mp4->mp3",
+          "options": {},
+          "input_mb": 20.48,
+          "seconds": 0.79,
+          "peak_mb": 58.6,
+          "output_mb": 1.37
+        },
+        {
+          "case": "mp4->gif",
+          "options": {},
+          "input_mb": 20.48,
+          "seconds": 8.15,
+          "peak_mb": 435.6,
+          "output_mb": 2.39
+        },
+        {
+          "case": "mov->mp4",
+          "options": {},
+          "input_mb": 20.48,
+          "seconds": 12.77,
+          "peak_mb": 274.4,
+          "output_mb": 18.01
+        }
+      ]
+    }
+  }
+}

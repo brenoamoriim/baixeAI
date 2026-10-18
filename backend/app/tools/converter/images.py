@@ -136,7 +136,10 @@ def _png_to_pillow(png: Path, fmt: str, work_dir: Path) -> Path:
 
 def _save_suffix(fmt: str, quality: int) -> str:
     keep = "keep=none"  # strip EXIF/XMP/ICC metadata (privacy)
-    if fmt in ("jpg", "webp", "avif"):
+    if fmt == "avif":
+        # effort=2: ~4x faster than the default (4) on CPU with near-identical size (measured, 12 MP)
+        return f"[Q={quality},effort=2,{keep}]"
+    if fmt in ("jpg", "webp"):
         return f"[Q={quality},{keep}]"
     if fmt == "tiff":
         return f"[compression=deflate,{keep}]"
