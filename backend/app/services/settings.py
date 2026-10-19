@@ -46,6 +46,9 @@ DEFAULTS: dict[str, tuple[Any, str]] = {
     "doc_max_pages": (300, "Máximo de páginas de PDF"),
     "download_max_bytes": (300 * 1024 * 1024, "Baixador: tamanho máximo do arquivo"),
     "download_max_seconds": (20 * 60, "Baixador: duração máxima do vídeo (segundos)"),
+    "adsense_client_id": (None, "AdSense: ID do editor (ca-pub-...). Vazio = sem anúncios"),
+    "adsense_slots": ({}, "AdSense: slots por posição, ex. {\"home_bottom\": \"1234567890\"}"),
+    "support_email": (None, "E-mail de suporte exibido no site (definir quando houver domínio)"),
 }
 
 

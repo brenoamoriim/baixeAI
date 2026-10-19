@@ -342,6 +342,9 @@ def apply_payment(db: Session, p: ProviderPayment) -> str:
         if recurring and payment.subscription_id:
             sub = db.get(Subscription, payment.subscription_id)
             allowed_amounts |= {db.get(Plan, pid).price_cents for pid in (sub.plan_id, sub.next_plan_id) if pid}
+            # an admin price change does not alter existing card subscriptions: accept amounts already paid
+            allowed_amounts |= set(db.execute(select(Payment.amount_cents).where(
+                Payment.subscription_id == sub.id, Payment.status == "approved")).scalars())
         if p.amount_cents not in allowed_amounts or not expected_currency_ok:
             _audit(
                 db,

@@ -22,6 +22,7 @@ from app.models import (
     AuditEvent,
     CreditCostRule,
     CreditPackage,
+    FeatureFlag,
     Plan,
     Subscription,
     SystemSetting,
@@ -111,6 +112,9 @@ def seed() -> None:
                     ),
                     {"v": json.dumps(value), "k": key},
                 )
+        db.execute(pg_insert(FeatureFlag).values(key="ads_enabled", enabled=False, rules={},
+                                                 description="Exibir anúncios AdSense (fora do baixador, D13)")
+                   .on_conflict_do_nothing(index_elements=["key"]))
         if not db.execute(select(CreditCostRule.id).limit(1)).first():
             db.add_all(
                 [
