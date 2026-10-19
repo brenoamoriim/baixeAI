@@ -20,7 +20,7 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto max-w-md">
-      <Card title="Entrar">
+      <Card title="Entrar" heading="h1">
         <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
           {error && <Alert kind="error">{error}</Alert>}
           <TextField label="E-mail" id="email" name="email" type="email" autoComplete="email" required />
@@ -30,10 +30,10 @@ export default function LoginPage() {
           </Button>
         </form>
         <div className="mt-4 flex justify-between text-sm">
-          <Link href="/recuperar-senha" className="text-blue-700 hover:underline">
+          <Link href="/recuperar-senha" className="text-blue-700 underline">
             Esqueci minha senha
           </Link>
-          <Link href="/cadastrar" className="text-blue-700 hover:underline">
+          <Link href="/cadastrar" className="text-blue-700 underline">
             Criar conta
           </Link>
         </div>

@@ -16,7 +16,7 @@ export default function RegisterPage() {
 
   return (
     <div className="mx-auto max-w-md">
-      <Card title="Criar conta grátis">
+      <Card title="Criar conta grátis" heading="h1">
         {result ? (
           <Alert kind="success">
             {result} Abra o link do e-mail para ativar suas 5 fichas diárias.
@@ -42,7 +42,7 @@ export default function RegisterPage() {
         )}
         <p className="mt-4 text-sm">
           Já tem conta?{" "}
-          <Link href="/entrar" className="text-blue-700 hover:underline">
+          <Link href="/entrar" className="text-blue-700 underline">
             Entrar
           </Link>
         </p>

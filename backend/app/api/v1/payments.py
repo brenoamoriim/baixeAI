@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from app.api.deps import current_user, require_admin
+from app.api.deps import current_user
 from app.core import clock
 from app.core.db import get_db
 from app.core.errors import NotFound
@@ -127,21 +127,6 @@ def change(body: ChangePlanBody, user: User = Depends(current_user), db: Session
 def renew(user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     hit(f"checkout:u:{user.id}", limit=10, window_seconds=600)
     return service.renew_manual(db, get_provider(), user)
-
-
-# ------------------------------------------------------------------ admin
-
-
-@router.post("/admin/payments/{payment_id}/refund")
-def admin_refund(payment_id: uuid.UUID, admin: User = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
-    return service.admin_refund(db, get_provider(), payment_id, admin)
-
-
-@router.post("/admin/payments/reconcile")
-def admin_reconcile(_: User = Depends(require_admin)) -> dict:
-    from app.core.db import SessionLocal
-
-    return service.reconcile(SessionLocal, get_provider())
 
 
 # ------------------------------------------------------------------ webhook

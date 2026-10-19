@@ -9,9 +9,9 @@ export function useMe() {
 
   useEffect(() => {
     let active = true;
-    api<Me>("/me")
-      .then((user) => active && setMe(user))
-      // 401 = visitor; any other failure also renders the visitor view
+    api<{ user: Me | null }>("/me/session")
+      .then((data) => active && setMe(data.user))
+      // any failure renders the visitor view
       .catch(() => active && setMe(null));
     return () => {
       active = false;

@@ -44,7 +44,7 @@ export async function parseError(response: Response): Promise<ApiError> {
   return new ApiError(response.status, code, message);
 }
 
-type Method = "GET" | "POST";
+type Method = "GET" | "POST" | "PATCH";
 
 export async function api<T>(
   path: string,
@@ -80,8 +80,10 @@ export async function uploadFile(file: File): Promise<Upload> {
   return (await response.json()) as Upload;
 }
 
+/** 128 random bits as hex. getRandomValues (unlike randomUUID) also works outside secure contexts. */
 export function newIdempotencyKey(): string {
-  return crypto.randomUUID().replaceAll("-", "");
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 // ---- response types (mirror backend/app/api/v1) ----

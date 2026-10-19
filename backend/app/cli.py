@@ -22,6 +22,7 @@ from app.models import (
     AuditEvent,
     CreditCostRule,
     CreditPackage,
+    FeatureFlag,
     Plan,
     Subscription,
     SystemSetting,
@@ -111,6 +112,9 @@ def seed() -> None:
                     ),
                     {"v": json.dumps(value), "k": key},
                 )
+        db.execute(pg_insert(FeatureFlag).values(key="ads_enabled", enabled=False, rules={},
+                                                 description="Exibir anúncios AdSense (fora do baixador, D13)")
+                   .on_conflict_do_nothing(index_elements=["key"]))
         if not db.execute(select(CreditCostRule.id).limit(1)).first():
             db.add_all(
                 [
@@ -245,6 +249,19 @@ def create_admin(email: str, password: str | None) -> None:
     print(f"admin ok: {email}")
 
 
+def verify_email(email: str) -> None:
+    """Development/test only (e2e): marks an e-mail as confirmed without the console link."""
+    from app.core.config import get_settings
+
+    if get_settings().is_production:
+        sys.exit("verify-email é só para desenvolvimento")
+    with SessionLocal() as db, db.begin():
+        user = _user(db, email)
+        user.email_verified_at = user.email_verified_at or clock.now()
+        _audit(db, "cli_verify_email", user)
+    print(f"e-mail confirmado: {email}")
+
+
 def grant_plan(email: str, plan_code: str) -> None:
     now = clock.now()
     with SessionLocal() as db, db.begin():
@@ -324,6 +341,8 @@ def main(argv: list[str] | None = None) -> None:
     p = sub.add_parser("create-admin")
     p.add_argument("--email", required=True)
     p.add_argument("--password", help="omita para digitar sem eco")
+    p = sub.add_parser("verify-email", help="somente desenvolvimento")
+    p.add_argument("--email", required=True)
     for name in ("grant-plan", "set-next-plan"):
         p = sub.add_parser(name)
         p.add_argument("--email", required=True)
@@ -342,6 +361,8 @@ def main(argv: list[str] | None = None) -> None:
             seed()
         case "create-admin":
             create_admin(args.email, args.password)
+        case "verify-email":
+            verify_email(args.email)
         case "grant-plan":
             grant_plan(args.email, args.plan)
         case "set-next-plan":

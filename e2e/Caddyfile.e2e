@@ -1,0 +1,25 @@
+# Same routing as infrastructure/caddy/Caddyfile.dev, but in front of the PRODUCTION frontend build
+# (container "frontend-prod"), so e2e and Lighthouse measure what users would get.
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	@upload path /api/v1/uploads
+	@other not path /api/v1/uploads
+
+	request_body @upload {
+		max_size 96MB
+	}
+	request_body @other {
+		max_size 1MB
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+	handle {
+		reverse_proxy frontend-prod:3000
+	}
+}

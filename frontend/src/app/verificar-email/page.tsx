@@ -36,7 +36,7 @@ function Verify() {
 export default function VerifyEmailPage() {
   return (
     <div className="mx-auto max-w-md">
-      <Card title="Confirmação de e-mail">
+      <Card title="Confirmação de e-mail" heading="h1">
         <Suspense fallback={<p>Carregando…</p>}>
           <Verify />
         </Suspense>

@@ -100,12 +100,21 @@ Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 - [ ] Rodar `sandbox_check` + compras de teste reais (Pix, crédito, débito, assinatura, reembolso) — confirmar `init_point` da assinatura pendente e o formato de `/authorized_payments`
 - [ ] Credenciais de produção + pagamento real de valor mínimo → Fase 6
 
-## Fase 5 — Site público, dashboard, admin, conformidade
-- [ ] Homepage, páginas de ferramenta com SEO
-- [ ] Dashboard e admin (RBAC)
-- [ ] LGPD/legal (marcado para revisão jurídica)
-- [ ] AdSense/SEO técnico conforme decisão D13
-- [ ] Lighthouse medido
+## Fase 5 — Site público, dashboard, admin, conformidade (`phase-5-site-publico`) — ✅ concluída, aguardando aprovação
+
+- [x] Homepage: busca universal ("pdf para word", "tirar fundo"), categorias, ferramentas, resumo de planos (vem da API), FAQ
+- [x] Páginas de ferramenta renderizadas no servidor: título/descrição/canonical/OpenGraph, "como usar", formatos, limites, FAQ, JSON-LD (WebApplication + FAQPage)
+- [x] SEO técnico: `robots.txt`, `sitemap.xml` (só páginas públicas), `noindex` em painel/admin/login/cadastro/pagamento
+- [x] AdSense (D13): só com flag `ads_enabled` + `adsense_client_id` + consentimento; nunca em `/baixar-videos`, conta, admin, auth, pagamento e preços; `ads.txt` gerado do publisher id (existe mesmo com anúncios desligados, para a aprovação). Banner de consentimento só aparece com anúncios ligados
+- [x] Páginas legais **em rascunho, com aviso visível de "sem revisão jurídica"**: termos (uso justo e vitalício revisável a cada 6 meses), privacidade, reembolso, cookies, direitos de conteúdo, contato (e-mail de suporte configurável pelo admin)
+- [x] Painel: download dos resultados recentes, alterar senha (desconecta outros dispositivos), exportar dados (LGPD, JSON), excluir conta (anonimiza; registros financeiros mantidos)
+- [x] Admin (`/admin`, RBAC no servidor): visão geral, ferramentas, combinações (só `available` se verificada), regras de custo, planos/pacotes, configurações e flags, pagamentos com reembolso e reconciliação, assinaturas, usuários (suspender), auditoria. Ações sensíveis pedem a senha de novo; tudo auditado
+- [x] Correções achadas pelos testes: páginas de login/cadastro sem `<h1>`; link só por cor (`link-in-text-block`); `crypto.randomUUID` quebrava o botão fora de HTTPS (agora `getRandomValues` + tratamento de erro); CLS 0,75 nas páginas de ferramenta (espaço reservado); 401 no console de visitantes (`/me/session`)
+- [x] Testes: frontend 23 (Vitest); E2E Playwright 47 (axe WCAG A/AA sem violações em 14 páginas públicas, desktop e mobile; jornada cadastro → confirmação → conversão PNG→JPG → download com assinatura JPEG → saldo 5→4; admin: senha errada recusada, mudança salva/revertida e auditada); backend API 263 passed
+- [x] Lighthouse medido (build de produção, local): ver `docs/architecture/measurements/phase-5-lighthouse.json`
+- [ ] **Revisão jurídica** de todas as páginas legais (sócios + advogado) — obrigatória antes do lançamento
+- [ ] AdSense: conta, aprovação, IDs de bloco (sócios) → `docs/VALIDACOES-DOS-SOCIOS.md` Fase 5
+- [ ] E-mail de suporte (depende de domínio) → configurar em Admin → Configurações
 
 ## Fase 6 — Segurança e deploy
 - [ ] Revisão de segurança completa

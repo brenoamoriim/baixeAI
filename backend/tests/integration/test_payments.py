@@ -22,7 +22,7 @@ from app.models import AuditEvent, CreditBucket, Payment, PaymentEvent, Plan, Su
 from app.payments.mercadopago import MercadoPago
 from app.payments.provider import CheckoutSession, ProviderPayment, ProviderSubscription, SubscriptionSession
 from app.services import payments as service
-from tests.conftest import make_user
+from tests.conftest import PASSWORD, make_user
 
 SECRET = "test-webhook-secret"
 
@@ -283,8 +283,8 @@ def test_admin_refund_is_proportional_to_unused_credits(new_client, mp):
         from app.services import credits
 
         credits.revoke_bucket(db, bucket, reason="test_spend", amount=4)
-    assert buyer.post(f"/api/v1/admin/payments/{out['payment_id']}/refund").status_code == 403
-    r = admin.post(f"/api/v1/admin/payments/{out['payment_id']}/refund")
+    assert buyer.post(f"/api/v1/admin/payments/{out['payment_id']}/refund", json={"confirm_password": PASSWORD}).status_code == 403
+    r = admin.post(f"/api/v1/admin/payments/{out['payment_id']}/refund", json={"confirm_password": PASSWORD})
     assert r.json() == {"refunded_cents": 294}  # 6/10 of R$ 4,90
     assert mp.calls[-1] == ("refund", "902", 294, f"refund-{out['payment_id']}")
     assert not [b for b in _credits(buyer)["buckets"] if b["kind"] == "package"]
@@ -299,7 +299,7 @@ def test_refund_window_closes_after_7_days(new_client, mp):
     notify(buyer, "payment", "903")
     with SessionLocal() as db, db.begin():
         db.execute(update(Payment).values(approved_at=clock.now() - timedelta(days=8)))
-    r = admin.post(f"/api/v1/admin/payments/{out['payment_id']}/refund")
+    r = admin.post(f"/api/v1/admin/payments/{out['payment_id']}/refund", json={"confirm_password": PASSWORD})
     assert r.status_code == 409 and r.json()["error"]["code"] == "refund_window_closed"
 
 
@@ -441,7 +441,7 @@ def test_lifetime_refund_revokes_access(new_client, mp):
     out = _buy(buyer, "lifetime")
     mp.set_payment("l2", status="approved", amount_cents=12000, ref=out["payment_id"])
     notify(buyer, "payment", "l2")
-    assert admin.post(f"/api/v1/admin/payments/{out['payment_id']}/refund").json() == {"refunded_cents": 12000}
+    assert admin.post(f"/api/v1/admin/payments/{out['payment_id']}/refund", json={"confirm_password": PASSWORD}).json() == {"refunded_cents": 12000}
     assert _credits(buyer)["lifetime"] is False
 
 

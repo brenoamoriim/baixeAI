@@ -1,0 +1,74 @@
+{
+  "measured_at": "2026-10-19",
+  "tool": "lighthouse 13.5.0 (Chromium do Playwright 1.63.0, headless, em Docker)",
+  "environment": "build de produção do Next.js atrás do Caddy, HTTP local (sem HTTPS: is-on-https e redirects-http falham por causa do ambiente)",
+  "note": "mobile = preset padrão do Lighthouse (Moto G emulado + throttling simulado); desktop = --preset=desktop. Medição em máquina de desenvolvimento, não no servidor real.",
+  "results": {
+    "conversores-desktop": {
+      "url": "/conversores",
+      "performance": 100,
+      "accessibility": 100,
+      "best_practices": 78,
+      "seo": 100,
+      "lcp": "0.7 s",
+      "cls": "0.001",
+      "tbt": "40 ms",
+      "fcp": "0.2 s"
+    },
+    "conversores-mobile": {
+      "url": "/conversores",
+      "performance": 93,
+      "accessibility": 100,
+      "best_practices": 78,
+      "seo": 100,
+      "lcp": "2.8 s",
+      "cls": "0.005",
+      "tbt": "200 ms",
+      "fcp": "0.8 s"
+    },
+    "home-desktop": {
+      "url": "/",
+      "performance": 100,
+      "accessibility": 100,
+      "best_practices": 78,
+      "seo": 100,
+      "lcp": "0.5 s",
+      "cls": "0.001",
+      "tbt": "20 ms",
+      "fcp": "0.2 s"
+    },
+    "home-mobile": {
+      "url": "/",
+      "performance": 91,
+      "accessibility": 100,
+      "best_practices": 78,
+      "seo": 100,
+      "lcp": "1.2 s",
+      "cls": "0.005",
+      "tbt": "390 ms",
+      "fcp": "0.8 s"
+    },
+    "precos-desktop": {
+      "url": "/precos",
+      "performance": 100,
+      "accessibility": 100,
+      "best_practices": 78,
+      "seo": 100,
+      "lcp": "0.6 s",
+      "cls": "0.001",
+      "tbt": "10 ms",
+      "fcp": "0.2 s"
+    },
+    "precos-mobile": {
+      "url": "/precos",
+      "performance": 94,
+      "accessibility": 100,
+      "best_practices": 78,
+      "seo": 100,
+      "lcp": "2.6 s",
+      "cls": "0.005",
+      "tbt": "190 ms",
+      "fcp": "0.8 s"
+    }
+  }
+}
