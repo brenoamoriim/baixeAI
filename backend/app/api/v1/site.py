@@ -16,4 +16,6 @@ def site_config(db: Session = Depends(get_db)) -> dict:
     slots = get_setting(db, "adsense_slots") or {}
     enabled = bool(flag and flag.enabled and client)
     return {"ads": {"enabled": enabled, "client": client if enabled else None, "slots": slots if enabled else {}},
+            # ads.txt must exist before AdSense approval, so it only depends on the (public) publisher id
+            "ads_txt_client": client,
             "support_email": get_setting(db, "support_email")}

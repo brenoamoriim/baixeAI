@@ -84,7 +84,9 @@ def test_settings_are_validated(admin, key, value):
 def test_ads_appear_only_when_flag_and_client_are_set(admin):
     assert admin.get("/api/v1/site-config").json()["ads"] == {"enabled": False, "client": None, "slots": {}}
     admin.patch("/api/v1/admin/settings/adsense_client_id", json={"value": "ca-pub-1234567890"})
-    assert admin.get("/api/v1/site-config").json()["ads"]["enabled"] is False  # flag still off
+    config = admin.get("/api/v1/site-config").json()
+    assert config["ads"]["enabled"] is False  # flag still off
+    assert config["ads_txt_client"] == "ca-pub-1234567890"  # ads.txt must exist before AdSense approval
     admin.patch("/api/v1/admin/settings/adsense_slots", json={"value": {"home_bottom": "111"}})
     admin.patch("/api/v1/admin/flags/ads_enabled", json={"enabled": True})
     assert admin.get("/api/v1/site-config").json()["ads"] == {
@@ -174,3 +176,28 @@ def test_change_password_keeps_current_session_only(new_client, db):
     active = db.execute(select(UserSession).where(UserSession.user_id == user.id,
                                                   UserSession.revoked_at.is_(None))).scalars().all()
     assert len(active) == 1
+
+
+def test_cli_verify_email_is_dev_only(monkeypatch, db):
+    from app import cli
+    from app.core.config import get_settings
+
+    user = make_user(verified=False)
+    cli.main(["verify-email", "--email", user.email])
+    db.expire_all()
+    assert db.get(User, user.id).email_verified_at is not None
+
+    other = make_user(verified=False)
+    monkeypatch.setattr(type(get_settings()), "is_production", property(lambda self: True))
+    with pytest.raises(SystemExit):
+        cli.main(["verify-email", "--email", other.email])
+    db.expire_all()
+    assert db.get(User, other.id).email_verified_at is None
+
+
+def test_session_probe_is_200_for_visitors_and_users(new_client):
+    anon, user = new_client(), new_client()
+    assert anon.get("/api/v1/me/session").json() == {"user": None}
+    u = make_user()
+    user.login(u.email)
+    assert user.get("/api/v1/me/session").json()["user"]["email"] == u.email

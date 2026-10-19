@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import current_user
+from app.api.deps import current_user, current_user_optional
 from app.core import clock
 from app.core.config import get_settings
 from app.core.db import get_db
@@ -15,14 +15,24 @@ from app.services import account, credits
 router = APIRouter(prefix="/me", tags=["me"])
 
 
-@router.get("")
-def me(user: User = Depends(current_user)) -> dict:
+def _public(user: User) -> dict:
     return {
         "id": str(user.id),
         "email": user.email,
         "email_verified": user.email_verified_at is not None,
         "role": user.role,
     }
+
+
+@router.get("")
+def me(user: User = Depends(current_user)) -> dict:
+    return _public(user)
+
+
+@router.get("/session")
+def session(user: User | None = Depends(current_user_optional)) -> dict:
+    """Header/session probe: 200 for visitors too (no 401 noise in the browser console)."""
+    return {"user": _public(user) if user else None}
 
 
 @router.get("/credits")
