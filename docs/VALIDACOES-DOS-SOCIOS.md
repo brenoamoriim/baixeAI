@@ -69,6 +69,25 @@ Sem esta etapa, os pagamentos ficam desligados (o site mostra "Pagamentos ainda 
   - [ ] f. vitalício;
   - [ ] g. um pagamento **recusado** (titular `OTHE`) e um **pendente** (titular `CONT`).
 - [ ] 8. Depois de cada compra, confira no painel se as fichas/plano apareceram **só depois** da confirmação.
-- [ ] 9. Como admin, faça um reembolso de teste: `POST /api/v1/admin/payments/{id}/refund` (botão no painel admin a partir da Fase 5).
+- [ ] 9. Como admin, faça um reembolso de teste: `POST /api/v1/admin/payments/{id}/refund` (ou pelo botão **Reembolsar** em Admin → Pagamentos).
 - [ ] 10. Cancele a assinatura de teste pelo painel e confirme no Mercado Pago que ela foi cancelada.
 - [ ] 11. Me envie a saída do passo 6 e os resultados (sem credenciais): eu confirmo os 2 pontos que a documentação não deixou claros.
+
+## Fase 5 — Site público, painel, admin e páginas legais
+
+Preparação: `docker compose up -d --build`. Se uma mudança no frontend não aparecer, rode `docker compose restart frontend` (limitação do Docker Desktop no Windows).
+
+- [ ] 1. Navegue como visitante por http://localhost:8080: home (teste a busca com "pdf para word", "tirar fundo", "mp3"), cada ferramenta, preços. Anote textos estranhos ou confusos.
+- [ ] 2. Abra no celular (mesma rede: `http://IP-DO-PC:8080`, ou pelo modo celular do navegador, F12) e veja se tudo cabe na tela.
+- [ ] 3. **Páginas legais — revisão por advogado (obrigatório antes de lançar):** `/termos`, `/privacidade`, `/reembolso`, `/cookies`, `/direitos-de-conteudo`. Pontos que dependem de vocês/advogado: foro e legislação, bases legais da LGPD e encarregado (DPO), procedimento de notificação de direitos, reembolso do vitalício, razão social/CNPJ quando existir. O aviso "Rascunho sem revisão jurídica" só sai depois disso (me peçam).
+- [ ] 4. No painel (logado): baixe um resultado recente, altere a senha, exporte seus dados (abra o JSON e confira) e, com uma conta de teste, **exclua a conta** e confirme que não dá mais para entrar.
+- [ ] 5. Crie o admin, se ainda não existir: `docker compose exec api python -m app.cli create-admin --email SEU-EMAIL --password "UMA-SENHA-FORTE"`. Entre e abra http://localhost:8080/admin.
+- [ ] 6. No admin, com a sua senha no campo do topo: mude o custo de uma ferramenta e volte ao valor original; pause e reative um pacote; suspenda e reative um usuário de teste; veja tudo registrado em **Auditoria**. Tente marcar como `available` uma combinação `planned` e confirme que o servidor recusa.
+- [ ] 7. Em Admin → Configurações, preencha `support_email` (entre aspas, ex.: `"suporte@seudominio.com.br"`) quando tiverem o e-mail, e veja em `/contato`.
+- [ ] 8. **AdSense (quando quiserem anúncios):**
+  - [ ] a. Criem a conta no Google AdSense com o domínio próprio (o AdSense não aprova subdomínio gratuito; confirmem a regra atual no AdSense, **NÃO VERIFICADO** por mim).
+  - [ ] b. Em Admin → Configurações, preencham `adsense_client_id` (ex.: `"ca-pub-1234..."`). Abram `/ads.txt` e comparem a linha com a que o AdSense mostra em "Sites → ads.txt". Se for diferente, me avisem.
+  - [ ] c. Depois da aprovação, criem os blocos de anúncio e preencham `adsense_slots`, ex.: `{"home_bottom": "111", "tool_bottom": "222"}`.
+  - [ ] d. Liguem a flag `ads_enabled`. Confiram: o banner de consentimento aparece; com "Só essenciais" nenhum anúncio carrega; **nunca** aparece anúncio em `/baixar-videos`, painel, login ou pagamento.
+  - [ ] e. Verifiquem as regras do AdSense sobre CMP/consentimento para o Brasil e a União Europeia (o banner atual é simples; a Google pode exigir uma CMP certificada para tráfego europeu, **NÃO VERIFICADO**).
+- [ ] 9. Opcional (técnico): rodem os testes de ponta a ponta: `powershell -ExecutionPolicy Bypass -File .\e2e\run.ps1` (leva ~5 min; precisa do Docker rodando).

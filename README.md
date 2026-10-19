@@ -70,7 +70,13 @@ docker compose run --rm --build -e TESTS_NO_DB=1 worker-download pytest tests/en
 
 # frontend
 cd frontend; npm ci; npm test; npm run lint; npm run typecheck
+
+# ponta a ponta + acessibilidade (axe) + Lighthouse, contra o build de PRODUÇÃO do frontend (Docker)
+powershell -ExecutionPolicy Bypass -File .\e2e\run.ps1            # -SkipLighthouse para pular a medição
 ```
+
+> Docker Desktop no Windows às vezes não avisa o `next dev` sobre arquivos alterados/novos:
+> `docker compose restart frontend`.
 
 ### Conversores: o que fica disponível
 

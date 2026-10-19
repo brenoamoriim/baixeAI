@@ -26,7 +26,7 @@
 
 ## 3. Critérios
 
-- CI local: `docker compose -f docker-compose.test.yml run --rm backend-tests` (PowerShell) — definido na Fase 2.
+- Comandos reais (backend por imagem, frontend e E2E): `README.md` → "Testes". E2E: `e2e/run.ps1` (Playwright 1.63.0 + axe 4.13.0 + Lighthouse 13.5.0, imagem `mcr.microsoft.com/playwright:v1.63.0-noble`), contra o build de produção atrás de um Caddy igual ao de dev. O cadastro no E2E é confirmado pelo comando de CLI `verify-email`, que recusa rodar com `APP_ENV=production`.
 - Cobertura mínima nos módulos `services/credits`, `payments`, `security`: 90% de linhas (meta, medida com `coverage`); o restante sem meta numérica.
 - Uma combinação de formato só vira `available` com teste de motor verde + arquivo de saída validado (assinatura e abertura pelo próprio motor/`ffprobe`).
 - Testes de segurança fazem parte da suíte normal, não são opcionais.

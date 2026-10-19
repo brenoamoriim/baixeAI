@@ -83,7 +83,18 @@ Sem rodeios: este é o recurso mais arriscado do produto.
 | V3 | **O motor quebra quando a plataforma muda** | yt-dlp precisa de atualizações frequentes (o YouTube exige até runtime JavaScript — deno + yt-dlp-ejs) | Procedimento de atualização documentado (README); falhas devolvem a ficha; taxa de sucesso por domínio |
 | V4 | **AdSense** | A política proíbe sites que permitem download não autorizado de conteúdo protegido | D13: sem anúncios nas páginas do baixador. Ainda assim o Google avalia o **site**, não só a página: pode recusar ou suspender a conta inteira |
 | V5 | **Mercado Pago** | Vender acesso a uma ferramenta associada a pirataria pode levar a denúncia/bloqueio da conta (programa de proteção de marca do MP; termos exatos **NÃO VERIFICADO**) | Comunicação do produto como "baixar seus vídeos e conteúdo público autorizado"; revisar termos do MP antes da Fase 4 |
-| V6 | **Hospedagem (Oracle)** | Política de uso aceitável sobre conteúdo infrator (**NÃO VERIFICADO**, página bloqueada); notificações DMCA chegam ao provedor | Backups fora da Oracle; o baixador pode ser desligado sem afetar o resto (`tool_definitions.enabled`; hoje só direto no banco — botão no painel admin na Fase 5) |
+| V6 | **Hospedagem (Oracle)** | Política de uso aceitável sobre conteúdo infrator (**NÃO VERIFICADO**, página bloqueada); notificações DMCA chegam ao provedor | Backups fora da Oracle; o baixador pode ser desligado sem afetar o resto (Admin → Ferramentas → desativar, com senha e auditoria — Fase 5) |
 | V7 | **Responsabilidade legal (Brasil)** | Marco Civil/LDA: o declarante assume a responsabilidade, mas a plataforma pode ser acionada | **Exige revisão por advogado** (Termos, aviso de direitos, canal de remoção) |
 
 Recomendação técnica: lançar o baixador **desligável** e monitorar V2/V3 na Oracle real na Fase 6 antes de anunciá-lo como recurso principal.
+
+## 5. Site público, admin e conformidade — riscos (Fase 5, 19/10/2026)
+
+| # | Risco | O que foi feito / o que resta |
+|---|---|---|
+| S1 | **Textos legais sem revisão jurídica** | Rascunhos coerentes com o PRD e com o que o sistema faz de verdade, com aviso visível de rascunho em cada página. **Não lançar** sem revisão por advogado (foro, bases legais LGPD, DPO, notificação de direitos, reembolso do vitalício) |
+| S2 | **Consentimento de anúncios** | Banner próprio simples: nenhum script do AdSense carrega sem "Aceitar anúncios". A Google pode exigir CMP certificada (TCF) para tráfego do EEE/Reino Unido — **NÃO VERIFICADO**; avaliar antes de ligar `ads_enabled` |
+| S3 | **Aprovação do AdSense** | Exige domínio próprio e conteúdo; o site como um todo é avaliado (ver V4). `ads.txt` pronto, gerado do publisher id |
+| S4 | **Admin comprometido** | RBAC no servidor, reautenticação por senha nas ações sensíveis (rate limit), auditoria de tudo, sem tela para conceder fichas arbitrárias. Resta: 2FA para admin (Fase 6) |
+| S5 | **Métricas Lighthouse locais** | Medidas em máquina de dev (HTTP). No servidor real (Oracle ARM, rede real) os números mudam; medir de novo na Fase 6 |
+
