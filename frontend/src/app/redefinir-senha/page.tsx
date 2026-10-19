@@ -50,7 +50,7 @@ function ResetForm() {
 export default function ResetPasswordPage() {
   return (
     <div className="mx-auto max-w-md">
-      <Card title="Criar nova senha">
+      <Card title="Criar nova senha" heading="h1">
         <Suspense fallback={<p>Carregando…</p>}>
           <ResetForm />
         </Suspense>

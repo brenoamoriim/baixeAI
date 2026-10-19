@@ -63,7 +63,7 @@ function ReturnStatus() {
 export default function PaymentReturnPage() {
   return (
     <div className="mx-auto max-w-lg">
-      <Card title="Pagamento">
+      <Card title="Pagamento" heading="h1">
         <Suspense fallback={<p>Carregando…</p>}>
           <ReturnStatus />
         </Suspense>

@@ -52,8 +52,8 @@ export default function ObjectRemoverPage() {
     setRunning(true);
     setRunError(null);
     setPreview(null);
-    keyRef.current ??= newIdempotencyKey();
     try {
+      keyRef.current ??= newIdempotencyKey();
       const maskFile = new File([await editor.current.maskBlob()], "mascara.png", { type: "image/png" });
       let mask = await uploadFile(maskFile);
       for (let i = 0; mask.status === "probing" && i < 60; i++) {

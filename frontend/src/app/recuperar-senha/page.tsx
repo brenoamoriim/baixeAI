@@ -15,7 +15,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="mx-auto max-w-md">
-      <Card title="Recuperar senha">
+      <Card title="Recuperar senha" heading="h1">
         {result ? (
           <Alert kind="success">{result}</Alert>
         ) : (

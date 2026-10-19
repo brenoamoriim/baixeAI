@@ -4,11 +4,12 @@ export function Button({
   variant = "primary",
   className = "",
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" }) {
-  const styles =
-    variant === "primary"
-      ? "bg-blue-700 text-white hover:bg-blue-800 disabled:bg-slate-400"
-      : "border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 disabled:text-slate-400";
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" }) {
+  const styles = {
+    primary: "bg-blue-700 text-white hover:bg-blue-800 disabled:bg-slate-400",
+    secondary: "border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 disabled:text-slate-400",
+    danger: "bg-red-700 text-white hover:bg-red-800 disabled:bg-slate-400",
+  }[variant];
   return (
     <button
       className={`inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed ${styles} ${className}`}
@@ -56,10 +57,15 @@ export function Alert({ kind, children }: { kind: "error" | "success" | "info"; 
   );
 }
 
-export function Card({ title, children }: { title?: string; children: ReactNode }) {
+/** `heading="h1"` when the card is the page's main content (e.g. auth pages): every page needs one h1. */
+export function Card({ title, heading: Heading = "h2", children }: {
+  title?: string;
+  heading?: "h1" | "h2";
+  children: ReactNode;
+}) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      {title && <h2 className="mb-3 text-lg font-semibold text-slate-900">{title}</h2>}
+      {title && <Heading className="mb-3 text-lg font-semibold text-slate-900">{title}</Heading>}
       {children}
     </section>
   );

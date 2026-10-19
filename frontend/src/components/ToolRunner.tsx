@@ -42,8 +42,8 @@ export function ToolRunner({ toolId, inputFormat, outputFormat, displayCost, bui
     if (!options) return;
     setBusy(true);
     setError(null);
-    keyRef.current ??= newIdempotencyKey();
     try {
+      keyRef.current ??= newIdempotencyKey();
       const created = await api<Job>("/jobs", {
         method: "POST",
         headers: { "Idempotency-Key": keyRef.current },

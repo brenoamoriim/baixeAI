@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AccountSettings } from "@/components/AccountSettings";
 import { BillingPanel } from "@/components/BillingPanel";
-import { Alert, Card } from "@/components/ui";
+import { Alert, Button, Card } from "@/components/ui";
 import { api, ApiError, type Credits, type Job } from "@/lib/api";
 import { bucketLabel, formatDate, formatDateTime, jobStatusLabel, pluralFichas, toolName } from "@/lib/format";
 
@@ -12,6 +13,7 @@ export default function DashboardPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [error, setError] = useState<"auth" | "other" | null>(null);
   const [resent, setResent] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([api<Credits>("/me/credits"), api<{ jobs: Job[] }>("/jobs")])
@@ -21,6 +23,16 @@ export default function DashboardPage() {
       })
       .catch((err) => setError(err instanceof ApiError && err.status === 401 ? "auth" : "other"));
   }, []);
+
+  async function download(job: Job) {
+    setDownloadError(null);
+    try {
+      const { url } = await api<{ url: string }>(`/jobs/${job.id}/download-link`, { method: "POST" });
+      window.location.assign(url);
+    } catch (err) {
+      setDownloadError(err instanceof ApiError ? err.message : "Não foi possível baixar o arquivo.");
+    }
+  }
 
   async function resend() {
     await api("/auth/resend-verification", { method: "POST" }).catch(() => undefined);
@@ -95,6 +107,8 @@ export default function DashboardPage() {
       <BillingPanel />
 
       <Card title="Processamentos recentes">
+        <p className="mb-2 text-xs text-slate-600">Os arquivos ficam disponíveis por poucas horas e depois são apagados.</p>
+        {downloadError && <Alert kind="error">{downloadError}</Alert>}
         {jobs.length === 0 ? (
           <p className="text-slate-700">Nenhum processamento ainda.</p>
         ) : (
@@ -107,11 +121,21 @@ export default function DashboardPage() {
                   {job.charged_from === "lifetime" ? "vitalício" : pluralFichas(job.credit_cost)}
                 </span>
                 <span className="text-slate-600">{job.created_at ? formatDateTime(job.created_at) : ""}</span>
+                {job.status === "completed" && job.has_output ? (
+                  <Button type="button" variant="secondary" className="px-3 py-1" onClick={() => download(job)}
+                    aria-label={`Baixar resultado de ${toolName(job.tool_id)}`}>
+                    Baixar
+                  </Button>
+                ) : (
+                  <span className="text-xs text-slate-500">{job.status === "completed" ? "arquivo expirado" : ""}</span>
+                )}
               </li>
             ))}
           </ul>
         )}
       </Card>
+
+      <AccountSettings />
 
       <div>
         <Link
