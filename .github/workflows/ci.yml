@@ -1,0 +1,85 @@
+# CI: tests + security scans on every push and pull request. Free for public repositories (GitHub-hosted
+# runners). Deploy is manual and documented in docs/OPERACAO.md (scripts/deploy.sh on the VM).
+name: ci
+
+on:
+  push:
+    branches: [main, "phase-*"]
+  pull_request:
+  schedule:
+    - cron: "0 9 * * 1" # weekly: picks up newly published CVEs even without code changes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Start database and broker
+        run: docker compose up -d --wait db redis
+      - name: API, credits, payments, security review (real Postgres/Redis)
+        run: docker compose run --rm --build migrate pytest -p no:cacheprovider
+      - name: Engines — documents and images (LibreOffice, libvips)
+        run: docker compose --profile tests run --rm --build tests-light pytest tests/engines -o addopts="" -p no:cacheprovider
+      - name: Engines — audio and video (FFmpeg)
+        run: docker compose --profile tests run --rm --build tests-media pytest tests/engines -o addopts="" -p no:cacheprovider
+      - name: Downloader + SSRF (no database)
+        run: docker compose run --rm --build -e TESTS_NO_DB=1 worker-download pytest tests/engines/test_downloader.py tests/unit/test_ssrf.py -o addopts="" -p no:cacheprovider
+      - name: AI engines (weekly / manual only — downloads ~200 MB of pinned models)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: docker compose --profile tests run --rm --build tests-ai pytest tests/engines/test_ai.py -o addopts="" -p no:cacheprovider
+      - name: Lint
+        run: docker compose run --rm --build --no-deps migrate ruff check --no-cache app tests
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22.23.3
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0 # full history for the secret scan
+      - name: Secrets in the whole git history (gitleaks)
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --no-banner --gitleaks-ignore-path /repo/.gitleaksignore
+      - name: Python dependencies (pip-audit)
+        run: |
+          # the compose networks have no internet by design: audit the same image on Docker's default network
+          docker compose build migrate
+          docker run --rm --user root --entrypoint sh baixeai-migrate -c "pip install -q pip-audit==2.10.1 && pip-audit --progress-spinner off"
+      - name: Node production dependencies (npm audit)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+      - name: Container images (Trivy, HIGH/CRITICAL with a fix available)
+        run: |
+          docker build --target runtime -t baixeai-api-runtime backend
+          docker build --target runtime -t baixeai-frontend-prod frontend
+          for img in baixeai-api-runtime baixeai-frontend-prod; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.75.0 image \
+              --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$img"
+          done

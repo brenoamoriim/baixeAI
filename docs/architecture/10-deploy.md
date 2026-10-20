@@ -63,3 +63,19 @@ Teste de restauração mensal (restaurar dump num Postgres local e rodar a recon
 - [ ] Restauração de backup testada
 - [ ] Limites de tamanho medidos na VM real
 - [ ] Termos, Privacidade e aviso de direitos publicados
+
+## 8. Estado na Fase 6 (19/10/2026)
+
+Implementado e testado localmente; execução na VM real depende da conta Oracle dos sócios. Operação: `docs/OPERACAO.md`.
+
+| Item do plano | Situação |
+|---|---|
+| Topologia | `docker-compose.prod.yml` sobre o compose base. Imagens construídas **na própria VM** a partir de uma tag git (`scripts/deploy.sh`), sem registry — mais simples para uma máquina; publicar imagens multi-arch no GHCR fica para quando houver mais de um servidor |
+| HTTPS | Caddy + Let's Encrypt (HTTP-01) no subdomínio DuckDNS; HSTS; CSP. Cloudflare só depois do domínio próprio (§2 continua válido) |
+| Firewall | `scripts/vm-setup.sh`: ufw 22/80/443, regras iptables da imagem Oracle, fail2ban, SSH só com chave, atualizações automáticas |
+| Backup | serviço `backup` (pg_dump + age, chave pública na VM) diário, 14 dias, cópia opcional R2 via rclone; restauração testada (`scripts/restore-test.sh`) |
+| Monitoramento | `/healthz` público; alertas por e-mail próprios (sem serviço pago); Sentry **não** adotado (evita enviar dados a terceiros); monitor externo de uptime recomendado |
+| CI | GitHub Actions — gratuito em repositório público com runners padrão; privado no plano Free: 2.000 min/mês ([docs GitHub](https://docs.github.com/en/billing/concepts/product-billing/github-actions), 19/10/2026) — `.github/workflows/ci.yml` |
+| Rollback | automático no `deploy.sh` quando o health check falha; manual por tag |
+| Memória ociosa medida | stack completo parado ≈ **1,1 GB** (Docker Desktop, 19/10/2026) — abaixo dos 20% de 24 GB que evitam a recuperação de VM ociosa pela Oracle (ver relatório da Fase 6) |
+| ARM64 (Ampere A1) | **Verificado por emulação (QEMU) em 20/10/2026**: as 6 imagens constroem para `linux/arm64`; conversões reais TXT→PDF (LibreOffice 25.2), PNG→JPG (libvips 8.16), geração MP3 (FFmpeg 7.1) e inferência ISNet (onnxruntime 1.31, wheel aarch64) com saída correta. Desempenho nativo na VM: **NÃO MEDIDO** (a emulação é ~dezenas de vezes mais lenta) |

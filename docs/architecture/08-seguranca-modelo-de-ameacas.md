@@ -121,6 +121,28 @@ Riscos residuais:
 
 Riscos residuais: a validação no sandbox real ainda não foi feita (sem credenciais); o comportamento exato de `init_point` em assinatura pendente e de `/authorized_payments` precisa ser confirmado; chargeback depois do consumo das fichas gera prejuízo (apenas auditado).
 
+## 3.6 Revisão de segurança da Fase 6 (19/10/2026)
+
+### Achados e correções
+
+| # | Achado | Gravidade | Correção | Evidência |
+|---|---|---|---|---|
+| R1 | Workers de motor (LibreOffice, libvips, FFmpeg, ONNX) recebiam **todo** o ambiente do backend (`DATABASE_URL`, `SECRET_KEY`, `MP_ACCESS_TOKEN`) e estavam na rede do Postgres. Um exploit num motor poderia ler `/proc/1/environ` e alterar fichas no banco | **Alta** | Motores agora seguem o padrão do baixador: rede `enginenet` (só Redis), papel `PROCESS_ROLE=engine` sem segredos nem URL de banco; recebem os dados do job como argumentos e devolvem o resultado como tarefa ao worker `default`, que valida o resultado (chave de saída precisa ser `jobs/<id do job>/…`, classe de erro conhecida, formato conhecido) e aplica uma única vez | `tests/engines/test_engine_isolation.py` executado **dentro** dos 4 workers (dev e stack de produção); `test_security_review.py` (resultados forjados) |
+| R2 | Em produção, o `worker-download` (sem segredos por desenho) **não subiria**: a validação exigia os 3 segredos em qualquer processo | Alta (bloqueio de deploy) | `PROCESS_ROLE=engine` dispensa os segredos e os deixa vazios; funções HMAC recusam chave vazia | `tests/unit/test_production_config.py` |
+| R3 | Envio de e-mail só existia em modo console: em produção ninguém confirmaria o e-mail | Alta (bloqueio de lançamento) | Provedor SMTP (TLS verificado; STARTTLS ou SSL), envio pela fila com novas tentativas; produção **recusa subir** sem SMTP ou sem `COOKIE_SECURE=true` | testes unitários + stack de produção local (cadastro responde 202 com SMTP fora do ar; tarefa re-tentada) |
+| R4 | Sem CSP no frontend | Média | CSP no build de produção do Next.js (sem `unsafe-eval`; `unsafe-inline` necessário para páginas pré-renderizadas) | E2E falha em qualquer violação de CSP; 14 páginas sem violação |
+| R5 | `pip` 25.0.1 da imagem base (12 CVEs) e bibliotecas antigas vendorizadas pelo pip/npm (Trivy) | Média | Base fixada em `python:3.12.15-slim-trixie`; **pip e npm removidos das imagens finais** | Trivy: 0 HIGH/CRITICAL com correção disponível em todas as imagens próprias |
+| R6 | Logs do Caddy gravariam IP completo (contradiz a política de privacidade) | Baixa (LGPD) | IPs mascarados (/16 IPv4, /32 IPv6) no log de acesso | `Caddyfile.prod` validado |
+| R7 | Rotas novas poderiam nascer sem proteção | Processo | Teste de política: toda rota precisa estar classificada (pública / usuário ou visitante / usuário / admin) e a dependência de autorização é conferida | `test_every_route_is_classified_and_guarded_accordingly` (59 rotas) |
+
+### Verificações sem achados
+
+- Autorização: 59 rotas inventariadas a partir da própria aplicação; todas as `/admin/*` exigem papel admin; IDOR (upload, inspeção de link, job, download, pagamento) responde 404 igual a "não existe"; mass assignment no cadastro (`role`, `email_verified_at`) ignorado; admin suspenso perde acesso na hora; CSRF exigido também para admin.
+- Abuso (já cobertos desde as fases 2–4 e re-executados): concorrência de fichas, corrida e replay de webhook, preço adulterado, uploads maliciosos (polyglots, bombas de pixels/ZIP, SVG com XXE/script, macros), nomes com path traversal, SSRF (25 URLs hostis + rebinding), rate limit, enumeração de e-mail, força bruta.
+- Segredos: gitleaks no **histórico completo** (40 commits): 2 falsos positivos revisados (senha fixa dos testes e o título da API), registrados por impressão digital em `.gitleaksignore`; `.env` e `cookies.txt` ignorados e ausentes do histórico.
+- Produção: docs/OpenAPI desligados, `/readyz` não exposto publicamente, mensagens de erro genéricas (detalhes de validação só fora de produção), HSTS, cookies `Secure`.
+- Dependências: `pip-audit` sem achados nas dependências da aplicação; `npm audit --omit=dev` sem achados. `npm audit` completo aponta 5 HIGH em `eslint-config-next` (ferramenta de lint, só desenvolvimento; a "correção" sugerida é rebaixar para Next 14) — aceito.
+
 ## 4. Riscos residuais (aceitos e documentados)
 
 1. **Zero-day** em FFmpeg/LibreOffice/libvips: mitigado por isolamento, não eliminado.
@@ -129,3 +151,9 @@ Riscos residuais: a validação no sandbox real ainda não foi feita (sem creden
 4. **yt-dlp acessa a internet**: a filtragem de rede depende de regras de firewall corretas no host; erro de configuração reabre o SSRF. Teste automatizado na Fase 3C e checagem no deploy (Fase 6).
 5. **Chargebacks** podem ocorrer depois do consumo das fichas.
 6. Sem auditoria externa de segurança (orçamento zero).
+7. **Workers de motor ainda alcançam o Redis** (necessário para a fila). Um motor comprometido poderia enfileirar tarefas falsas (ex.: marcar um job em andamento como concluído ou falho). Impacto limitado: não cria fichas, não lê segredos, não alcança o banco; o resultado é validado. Correção completa (assinatura de mensagens do Celery ou ACL por fila) fica para depois do MVP.
+8. **CVEs sem correção publicada no Debian** dentro das imagens dos motores (ex.: `libopenexr`, `libxml2`, FFmpeg): 119–208 HIGH/CRITICAL "unfixed" por imagem segundo o Trivy. Mitigado pelo isolamento (sem rede, sem banco, sem segredos, sem root, read-only, limites de recursos); reavaliar a cada rebuild semanal do CI.
+9. **Caddy 2.11.7 e Postgres 17.11** (versões mais recentes publicadas em 19/10/2026) contêm Go stdlib com CVEs (no Postgres, só no `gosu`, usado na inicialização). Atualizar assim que houver nova versão — o Caddy fica exposto à internet.
+10. **CSP com `unsafe-inline`** em scripts (exigência das páginas estáticas do Next.js). XSS continua mitigado pelo React (escape por padrão) e por não renderizarmos HTML de usuários.
+11. **Sem 2FA para admin**. Mitigado por senha forte (Argon2id), reautenticação nas ações sensíveis, rate limit e auditoria.
+12. Isolamento de rede verificado no Docker Desktop (Windows) e no stack de produção local; **na VM Oracle real ainda precisa ser executado** no primeiro deploy (`docs/OPERACAO.md` §6).

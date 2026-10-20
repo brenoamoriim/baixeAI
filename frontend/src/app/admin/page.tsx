@@ -44,6 +44,12 @@ type Overview = {
   revenue_30d_cents: number;
   pending_payments: number;
   jobs_24h: { tool_id: string; status: string; count: number }[];
+  health: {
+    disk: { total_bytes: number; free_bytes: number; used_percent: number };
+    queues: Record<string, number>;
+    system_failures_1h: number;
+    payments_pending_over_2d: number;
+  } | null;
   failures_24h: { tool_id: string; error_class: string | null; error_code: string | null; count: number }[];
 };
 
@@ -67,6 +73,18 @@ function OverviewSection() {
           </div>
         ))}
       </dl>
+      <h3 className="font-semibold">Saúde do servidor</h3>
+      {data.health ? (
+        <ul className="text-sm">
+          <li>
+            Disco: {data.health.disk.used_percent}% usado ({(data.health.disk.free_bytes / 1e9).toFixed(1)} GB livres)
+            {data.health.disk.used_percent >= 80 && <Badge tone="soon">acima de 80%</Badge>}
+          </li>
+          <li>Filas: {Object.entries(data.health.queues).map(([q, n]) => `${q} ${n}`).join(" · ")}</li>
+          <li>Falhas de sistema na última hora: {data.health.system_failures_1h}</li>
+          <li>Pagamentos pendentes há mais de 2 dias: {data.health.payments_pending_over_2d}</li>
+        </ul>
+      ) : <p className="text-sm text-red-700">Não foi possível medir (Redis ou disco indisponível).</p>}
       <h3 className="font-semibold">Processamentos (24 h)</h3>
       <table className="text-left text-sm">
         <thead><tr><th className={th}>Ferramenta</th><th className={th}>Situação</th><th className={th}>Qtd.</th></tr></thead>

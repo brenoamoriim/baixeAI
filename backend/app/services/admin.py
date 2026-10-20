@@ -93,7 +93,17 @@ def overview(db: Session) -> dict:
         "pending_payments": db.execute(
             select(func.count()).select_from(Payment).where(Payment.status == "pending")
         ).scalar_one(),
+        "health": _health(db),
     }
+
+
+def _health(db: Session) -> dict | None:
+    from app.services import monitoring
+
+    try:
+        return monitoring.snapshot(db)
+    except Exception:  # noqa: BLE001 - the overview must load even if Redis/disk checks fail
+        return None
 
 
 # --------------------------------------------------------------------------- tools & capabilities

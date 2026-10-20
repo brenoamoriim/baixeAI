@@ -9,11 +9,22 @@ from app.workers.celery_app import celery
 log = logging.getLogger(__name__)
 
 
+# ---- engine workers (light/media/ai): NO database access, no secrets. Plain data in, outcome sent back
+# as a task to the default worker, which owns every database write (same pattern as worker-download).
+
+
 # Engines enforce their own timeouts (sandbox); these Celery limits are only a backstop.
-@celery.task(name="jobs.run", soft_time_limit=1000, time_limit=1060)
-def run_job(job_id: str) -> None:
-    with SessionLocal() as db:
-        jobs.run(db, uuid.UUID(job_id))
+@celery.task(name="jobs.execute", soft_time_limit=1000, time_limit=1060)
+def execute_job(spec: dict) -> None:
+    jobs_mark_processing.apply_async(args=[spec["job_id"]], queue="default")
+    result = jobs.execute_spec(spec)
+    jobs_finish_engine.apply_async(args=[spec["job_id"], result], queue="default")
+
+
+@celery.task(name="uploads.probe", soft_time_limit=90, time_limit=120)
+def probe_upload(upload_id: str, storage_key: str, fmt: str, category: str, limits: dict) -> None:
+    result = uploads.probe_compute(storage_key, fmt, category, limits)
+    uploads_probe_result.apply_async(args=[upload_id, result], queue="default")
 
 
 # ---- worker-download (no database access: plain arguments in, results sent back as tasks) ----
@@ -59,6 +70,12 @@ def downloads_inspection_result(inspection_id: str, result: dict) -> None:
 def jobs_mark_processing(job_id: str) -> None:
     with SessionLocal() as db:
         jobs.mark_processing(db, uuid.UUID(job_id))
+
+
+@celery.task(name="jobs.finish_engine")
+def jobs_finish_engine(job_id: str, result: dict) -> None:
+    with SessionLocal() as db:
+        jobs.finish_engine(db, uuid.UUID(job_id), result)
 
 
 @celery.task(name="jobs.finish_remote")
@@ -147,10 +164,10 @@ def subscriptions_maintenance() -> dict:
     return payments.subscription_maintenance(SessionLocal, provider)
 
 
-@celery.task(name="uploads.probe", soft_time_limit=90, time_limit=120)
-def probe_upload(upload_id: str) -> None:
+@celery.task(name="uploads.probe_result")
+def uploads_probe_result(upload_id: str, result: dict) -> None:
     with SessionLocal() as db:
-        uploads.probe(db, uuid.UUID(upload_id))
+        uploads.apply_probe(db, uuid.UUID(upload_id), result)
 
 
 @celery.task(name="maintenance.cleanup_uploads")
@@ -179,5 +196,30 @@ def ledger_reconciliation() -> int:
         mismatches = credits.ledger_mismatches(db)
     if mismatches:
         # Alert only; never auto-fix the ledger (docs/architecture/04 §3).
+        from app.services import monitoring
+
         log.error("ledger mismatch", extra={"buckets": [str(b) for b in mismatches]})
+        monitoring.alert("ledger", f"{len(mismatches)} carteira(s) com divergência no livro-razão de fichas.")
     return len(mismatches)
+
+
+@celery.task(name="maintenance.health_check")
+def health_check() -> dict:
+    from app.services import monitoring
+
+    with SessionLocal() as db:
+        snap = monitoring.snapshot(db)
+    for kind, message in monitoring.problems(snap):
+        monitoring.alert(kind, message)
+    return snap
+
+
+@celery.task(name="email.send", bind=True, max_retries=5, default_retry_delay=60, soft_time_limit=60)
+def send_email_task(self, to: str, subject: str, body: str) -> None:
+    from app.services.email import deliver_smtp
+
+    try:
+        deliver_smtp(to, subject, body)
+    except Exception as exc:  # noqa: BLE001 - network/provider errors are retried
+        log.warning("email delivery failed, retrying", extra={"attempt": self.request.retries + 1})
+        raise self.retry(exc=exc) from None

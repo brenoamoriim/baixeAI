@@ -3,6 +3,7 @@
 *.env
 .env.*
 !.env.example
+!.env.production.example
 cookies.txt
 *.pem
 *.key
@@ -28,8 +29,8 @@ coverage/
 htmlcov/
 
 # User files / local data
-storage/
-backups/
+/storage/
+/backups/
 *.db
 *.sqlite
 *.sqlite3

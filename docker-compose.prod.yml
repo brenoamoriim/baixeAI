@@ -1,0 +1,151 @@
+# BaixeAI — PRODUCTION override (one VM). Always used together with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env up -d --build
+# Differences from development: code baked into images (no bind mounts), no published ports except Caddy
+# 80/443, automatic HTTPS, restart policies, log rotation, resource caps, daily encrypted backups.
+# Runbook: docs/OPERACAO.md
+
+x-prod: &prod
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+services:
+  db:
+    <<: *prod
+    mem_limit: 2g
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+
+  redis:
+    <<: *prod
+    mem_limit: 512m
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD}", "--appendonly", "yes",
+              "--maxmemory", "400mb", "--maxmemory-policy", "noeviction"]
+
+  migrate:
+    build: { context: ./backend, target: runtime }
+    volumes: !reset []
+
+  api:
+    <<: *prod
+    build: { context: ./backend, target: runtime }
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2",
+              "--no-server-header"]
+    volumes: !override
+      - storage:/data/storage
+    ports: !reset []
+    read_only: true
+    tmpfs: ["/tmp:size=200m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    <<: *prod
+    build: { context: ./backend, target: runtime }
+    volumes: !override
+      - storage:/data/storage
+    read_only: true
+    tmpfs: ["/tmp:size=200m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1g
+
+  beat:
+    <<: *prod
+    build: { context: ./backend, target: runtime }
+    volumes: !reset []
+    read_only: true
+    tmpfs: ["/tmp:size=20m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+
+  worker-light:
+    <<: *prod
+    volumes: !override
+      - storage:/data/storage
+  worker-media:
+    <<: *prod
+    volumes: !override
+      - storage:/data/storage
+  worker-ai:
+    <<: *prod
+    volumes: !override
+      - storage:/data/storage
+  worker-download:
+    <<: *prod
+    volumes: !override
+      - storage:/data/storage
+
+  egress-proxy:
+    <<: *prod
+    build: { context: ./backend, target: runtime }
+
+  frontend:
+    <<: *prod
+    build:
+      context: ./frontend
+      target: runtime
+      args:
+        NEXT_PUBLIC_SITE_URL: https://${SITE_DOMAIN:?set SITE_DOMAIN}
+    volumes: !reset []
+    ports: !reset []
+    read_only: true
+    tmpfs: ["/tmp:size=100m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+
+  proxy:
+    <<: *prod
+    volumes: !override
+      - ./infrastructure/caddy/Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    ports: !override
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+
+  # Daily encrypted pg_dump (age) kept locally (14 days) and, if configured, copied off the VM with rclone
+  # (S3-compatible, e.g. Cloudflare R2). Restore drill: scripts/restore-test.sh
+  backup:
+    <<: *prod
+    build: { context: ./infrastructure/backup }
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?set BACKUP_AGE_RECIPIENT (age public key)}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
+    volumes:
+      - backups:/backups
+    depends_on:
+      db: { condition: service_healthy }
+    mem_limit: 256m
+    networks: [internal, egress]
+
+volumes:
+  caddy_data:
+  caddy_config:
+  backups:

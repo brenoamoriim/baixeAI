@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=None, extra="ignore")
 
     app_env: Literal["development", "test", "production"] = "development"
+    # "engine": workers that process untrusted files (light/media/ai/download). They get no secrets and no
+    # database credentials at all, so a compromised engine cannot read or forge them.
+    process_role: Literal["app", "engine"] = "app"
     app_base_url: str = "http://localhost:3000"
     tz_reference: str = "America/Sao_Paulo"
 
@@ -26,8 +29,15 @@ class Settings(BaseSettings):
     file_retention_hours: int = 2
     signed_url_ttl_seconds: int = 900
 
-    email_provider: Literal["console", "memory"] = "console"
+    # console: development log only. memory: tests. smtp: real delivery (required in production).
+    email_provider: Literal["console", "memory", "smtp"] = "console"
     email_from: str = "nao-responda@baixeai.local"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_security: Literal["starttls", "ssl"] = "starttls"
+    alert_email: str = ""  # operational alerts (disk, queues, errors); empty = log only
 
     session_ttl_days: int = 14
     cookie_secure: bool = True
@@ -53,6 +63,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _require_secrets_outside_dev(self) -> "Settings":
+        if self.process_role == "engine":
+            # no placeholders either: anything that tries to sign/verify in an engine fails loudly
+            self.secret_key = self.signed_url_secret = self.guest_id_hmac_secret = ""
+            self.database_url = "postgresql+psycopg://engine-has-no-database@invalid:1/none"
+            return self
         secrets = {
             "SECRET_KEY": self.secret_key,
             "SIGNED_URL_SECRET": self.signed_url_secret,
@@ -61,6 +76,11 @@ class Settings(BaseSettings):
         weak = [name for name, value in secrets.items() if len(value) < 32]
         if weak and self.app_env == "production":
             raise ValueError(f"Missing or weak secrets in production: {', '.join(weak)}")
+        if self.app_env == "production":
+            if self.email_provider != "smtp" or not self.smtp_host:
+                raise ValueError("Production requires EMAIL_PROVIDER=smtp and SMTP_HOST (users must get e-mails)")
+            if not self.cookie_secure:
+                raise ValueError("Production requires COOKIE_SECURE=true (HTTPS only)")
         if weak:
             # Development/test only: deterministic placeholders so the stack boots.
             self.secret_key = self.secret_key or "dev-secret-key-not-for-production-000000"

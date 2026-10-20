@@ -91,3 +91,24 @@ Preparação: `docker compose up -d --build`. Se uma mudança no frontend não a
   - [ ] d. Liguem a flag `ads_enabled`. Confiram: o banner de consentimento aparece; com "Só essenciais" nenhum anúncio carrega; **nunca** aparece anúncio em `/baixar-videos`, painel, login ou pagamento.
   - [ ] e. Verifiquem as regras do AdSense sobre CMP/consentimento para o Brasil e a União Europeia (o banner atual é simples; a Google pode exigir uma CMP certificada para tráfego europeu, **NÃO VERIFICADO**).
 - [ ] 9. Opcional (técnico): rodem os testes de ponta a ponta: `powershell -ExecutionPolicy Bypass -File .\e2e\run.ps1` (leva ~5 min; precisa do Docker rodando).
+
+## Fase 6 — Colocar no ar (servidor, HTTPS, e-mail, backups)
+
+Passo a passo técnico completo em `docs/OPERACAO.md`. Tudo aqui é gratuito; os limites dos planos gratuitos devem ser conferidos no dia (podem mudar).
+
+- [ ] 1. **Oracle Cloud:** criem a conta escolhendo **São Paulo** como região de origem (não dá para trocar depois). Criem uma VM *Ampere A1* (ARM) com Ubuntu 24.04. Se aparecer "out of capacity", tentem em outro horário.
+- [ ] 2. No console da Oracle, na *Security List* da rede, liberem as portas **80 e 443**.
+- [ ] 3. **DuckDNS:** entrem em duckdns.org, criem um subdomínio (ex.: `baixeai.duckdns.org`) e apontem para o IP público da VM.
+- [ ] 4. **E-mail transacional:** escolham um provedor com SMTP gratuito (anotem o limite de envios por dia do plano grátis e a data em que conferiram). Configurem o remetente conforme o provedor pedir.
+- [ ] 5. **Chave dos backups:** num computador de vocês, gerem a chave (`age-keygen -o baixeai-backup.key`) e guardem o arquivo num gerenciador de senhas. **Sem essa chave os backups não podem ser lidos** — nem por mim, nem pela Oracle.
+- [ ] 6. (Opcional, recomendado) **Cloudflare R2** para guardar cópias dos backups fora da VM.
+- [ ] 7. Sigam `docs/OPERACAO.md` §1 para preparar a VM e fazer o primeiro deploy. Preencham o `.env` **direto na VM** — nunca me mandem as senhas.
+- [ ] 8. Abram `https://SEU-SUBDOMINIO` e confiram o cadeado (HTTPS). Cadastrem-se e confirmem que o **e-mail de confirmação chega**.
+- [ ] 9. Rodem a conferência de isolamento na VM (`docs/OPERACAO.md` §6) e me mandem a saída.
+- [ ] 10. Cadastrem um monitor de uptime gratuito para `https://SEU-SUBDOMINIO/healthz` com alerta no e-mail de vocês.
+- [ ] 11. Preencham `ALERT_EMAIL` no `.env` e confirmem que chegam alertas (ex.: deixem o disco de teste passar de 80% — ou me peçam um teste controlado).
+- [ ] 12. Depois de 1 dia, confiram que o backup rodou (`docker compose ... logs backup`) e façam **um teste de restauração** no computador de vocês (`scripts/restore-test.sh`). Repitam todo mês.
+- [ ] 13. **Mercado Pago em produção** (só depois da validação no sandbox da Fase 4): cadastrem o webhook `https://SEU-SUBDOMINIO/api/webhooks/mercadopago`, façam um pagamento de teste e depois **um pagamento real de valor mínimo combinado comigo**, conferindo fichas e reembolso.
+- [ ] 14. Acompanhem a memória da VM nas primeiras semanas (Admin → Visão geral e `docker stats`): a Oracle pode recuperar VMs gratuitas muito ociosas (ver relatório da Fase 6).
+- [ ] 15. Antes de divulgar: revisão jurídica concluída (Fase 5), e-mail de suporte configurado, decisão consciente sobre os riscos do baixador (Fase 3C).
+

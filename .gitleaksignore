@@ -1,0 +1,4 @@
+# Reviewed false positives (Phase 6): test-only fixture passwords (test database only) and the FastAPI title string.
+3aa52e08686f6fab18aa9cc80b0aaf9f9934d049:backend/tests/conftest.py:generic-api-key:34
+7684672cf2b4be1b69340cb7b3f78312db467036:backend/app/main.py:generic-api-key:22
+a885e7ac4c6d1abe59ef9eec8052df2a5f4fbe73:backend/tests/integration/test_security_review.py:generic-api-key:115

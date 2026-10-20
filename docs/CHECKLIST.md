@@ -100,7 +100,7 @@ Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 - [ ] Rodar `sandbox_check` + compras de teste reais (Pix, crédito, débito, assinatura, reembolso) — confirmar `init_point` da assinatura pendente e o formato de `/authorized_payments`
 - [ ] Credenciais de produção + pagamento real de valor mínimo → Fase 6
 
-## Fase 5 — Site público, dashboard, admin, conformidade (`phase-5-site-publico`) — ✅ concluída, aguardando aprovação
+## Fase 5 — Site público, dashboard, admin, conformidade (`phase-5-site-publico`) — ✅ concluída e aprovada
 
 - [x] Homepage: busca universal ("pdf para word", "tirar fundo"), categorias, ferramentas, resumo de planos (vem da API), FAQ
 - [x] Páginas de ferramenta renderizadas no servidor: título/descrição/canonical/OpenGraph, "como usar", formatos, limites, FAQ, JSON-LD (WebApplication + FAQPage)
@@ -116,8 +116,33 @@ Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 - [ ] AdSense: conta, aprovação, IDs de bloco (sócios) → `docs/VALIDACOES-DOS-SOCIOS.md` Fase 5
 - [ ] E-mail de suporte (depende de domínio) → configurar em Admin → Configurações
 
-## Fase 6 — Segurança e deploy
-- [ ] Revisão de segurança completa
-- [ ] Deploy Oracle + Cloudflare
-- [ ] Backup + restauração testada
-- [ ] Monitoramento, CI/CD, runbook
+## Fase 6 — Segurança e deploy (`phase-6-seguranca-deploy`) — ✅ revisão e preparação concluídas; ⚠️ deploy real pendente (depende das contas dos sócios)
+
+**Parte A — revisão de segurança** (detalhes: `docs/architecture/08` §3.6)
+- [x] Suíte completa executada (resultados no relatório da fase)
+- [x] Autorização: 59 rotas classificadas por teste de política; IDOR, mass assignment, admin suspenso, CSRF para admin
+- [x] Abusos re-executados (fichas, concorrência, webhooks, replay, preço, uploads maliciosos, path traversal, SSRF, rate limit, enumeração, força bruta)
+- [x] **Corrigido (alta):** workers de motor tinham banco e todos os segredos → agora sem banco, sem segredos, rede só com Redis; resultado validado pelo worker `default`
+- [x] **Corrigido (bloqueio):** `worker-download` não subiria em produção; e-mail só em console → SMTP real; produção recusa configuração insegura
+- [x] Isolamento verificado de dentro dos 4 workers (sem Postgres/API/internet/metadata, sem segredos, sem root, sem capabilities, read-only) + limites de CPU/memória/PIDs
+- [x] Varreduras: pip-audit, npm audit, Trivy (0 HIGH/CRITICAL corrigíveis nas imagens próprias após remover pip/npm), gitleaks no histórico (só falsos positivos revisados)
+- [x] CSP no frontend, HSTS, docs da API desligadas em produção, erros genéricos, IPs mascarados nos logs
+- [x] Modelo de ameaças atualizado com riscos residuais
+- [x] **Corrigido (bloqueio):** o pacote `backend/app/storage/` nunca tinha sido versionado (regra `storage/` ampla no `.gitignore`); só o CI num clone limpo revelou — agora versionado e o CI roda a cada push
+- [x] Imagens ARM64 (VM Oracle) construídas e com conversões/IA reais por emulação
+
+**Parte B — deploy (preparado e testado localmente)**
+- [x] `docker-compose.prod.yml` + `Caddyfile.prod` (HTTPS automático, HSTS, limites, logs com rotação, restart, recursos)
+- [x] Stack de produção completo testado localmente com `APP_ENV=production` e HTTPS: páginas, headers, conversão real de visitante, download protegido, backup automático, isolamento
+- [x] Backup diário criptografado (age) + **restauração testada** (26 tabelas, 0 divergências no livro-razão, contagens idênticas)
+- [x] Monitoramento: `/healthz`, logs JSON, alertas por e-mail (disco, filas, falhas, erro 500, motor, livro-razão), saúde no admin
+- [x] CI (GitHub Actions): testes backend/motores/frontend + gitleaks, pip-audit, npm audit, Trivy; rebuild semanal
+- [x] Deploy com backup prévio e **rollback automático** (`scripts/deploy.sh`), preparação da VM (`scripts/vm-setup.sh`), runbook (`docs/OPERACAO.md`)
+- [ ] **Conta Oracle + VM A1 em São Paulo** (sócios) → primeiro deploy real
+- [ ] Subdomínio DuckDNS + certificado real (HTTP-01 NÃO VERIFICADO até o primeiro deploy)
+- [ ] SMTP de produção (provedor e limites gratuitos a escolher pelos sócios)
+- [ ] Isolamento e limites medidos **na VM real**
+- [ ] Webhook do Mercado Pago na URL pública: pagamento de teste e depois pagamento real de valor mínimo combinado (depende das credenciais — Fase 4)
+- [ ] Monitor externo de uptime (gratuito) apontando para `/healthz`
+- [ ] Revisão jurídica das páginas legais antes de abrir ao público
+

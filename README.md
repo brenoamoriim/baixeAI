@@ -63,9 +63,12 @@ docker compose up -d db redis
 docker compose run --rm --build migrate pytest
 
 # testes com motores reais (conversões, negativos, fluxo completo)
-docker compose run --rm --build --no-deps worker-light pytest tests/engines -o addopts=""
-docker compose run --rm --build --no-deps worker-media pytest tests/engines -o addopts=""
-docker compose run --rm --build --no-deps worker-ai pytest tests/engines/test_ai.py -o addopts=""
+# (os workers de motor de verdade não têm banco nem segredos; os testes usam os serviços "tests-*" com o banco de teste)
+docker compose --profile tests run --rm --build tests-light pytest tests/engines -o addopts=""
+docker compose --profile tests run --rm --build tests-media pytest tests/engines -o addopts=""
+docker compose --profile tests run --rm --build tests-ai pytest tests/engines/test_ai.py -o addopts=""
+# isolamento conferido de DENTRO dos workers em execução
+docker compose exec -T -e TESTS_NO_DB=1 worker-light python -m pytest tests/engines/test_engine_isolation.py -o addopts="" -p no:cacheprovider
 docker compose run --rm --build -e TESTS_NO_DB=1 worker-download pytest tests/engines/test_downloader.py tests/unit/test_ssrf.py -o addopts=""
 
 # frontend
@@ -117,3 +120,8 @@ As plataformas mudam e o yt-dlp precisa acompanhar. Procedimento:
 - Infra: Docker + Docker Compose
 
 O backend roda em contêiner (Python 3.12); não é preciso instalar Python 3.12 no Windows.
+
+## Produção
+
+Deploy, atualização, rollback, backups, rotação de segredos e incidentes: [`docs/OPERACAO.md`](docs/OPERACAO.md).
+CI (testes + varreduras): `.github/workflows/ci.yml`.

@@ -64,6 +64,9 @@ async def validation_handler(request: Request, exc: RequestValidationError) -> J
 @app.exception_handler(Exception)
 async def unhandled_handler(request: Request, exc: Exception) -> JSONResponse:
     log.exception("unhandled error", extra={"request_id": getattr(request.state, "request_id", None)})
+    from app.services import monitoring
+
+    monitoring.alert("api_error", f"Erro interno na API ({type(exc).__name__}) em {request.url.path}.")
     return _error(500, "internal_error", "Erro interno. Tente novamente em instantes.", request)
 
 

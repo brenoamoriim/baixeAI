@@ -9,7 +9,10 @@ for (const path of PUBLIC) {
   test(`@public ${path} renders and has no WCAG A/AA violations`, async ({ page }) => {
     const adRequests: string[] = [];
     page.on("request", (r) => { if (/googlesyndication|doubleclick|adsbygoogle/.test(r.url())) adRequests.push(r.url()); });
-    await page.goto(path);
+    const cspViolations: string[] = [];
+    page.on("console", (m) => { if (/Content Security Policy|Refused to/.test(m.text())) cspViolations.push(m.text()); });
+    const response = await page.goto(path);
+    expect(response?.headers()["content-security-policy"], "production CSP header").toContain("frame-ancestors 'none'");
     await expect(page.locator("h1").first()).toBeVisible();
     await page.waitForLoadState("networkidle");
     const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
@@ -17,6 +20,7 @@ for (const path of PUBLIC) {
     expect(summary, summary.join("\n")).toEqual([]);
     // no ad network is contacted without config + consent (ads are off in this environment)
     expect(adRequests).toEqual([]);
+    expect(cspViolations, cspViolations.join(" | ")).toEqual([]);
   });
 }
 
