@@ -14,11 +14,25 @@ x-backend-env: &backend-env
   REDIS_URL: redis://:${REDIS_PASSWORD:-redis_dev_only}@redis:6379/0
   STORAGE_LOCAL_ROOT: /data/storage
   EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
+  EMAIL_FROM: ${EMAIL_FROM:-nao-responda@baixeai.local}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  ALERT_EMAIL: ${ALERT_EMAIL:-}
   MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
   MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
   API_PUBLIC_URL: ${API_PUBLIC_URL:-}
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
   TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+
+# Engine workers (untrusted files: LibreOffice, libvips, FFmpeg, ONNX, yt-dlp): no secrets, no database URL.
+x-engine-env: &engine-env
+  APP_ENV: ${APP_ENV:-development}
+  PROCESS_ROLE: engine
+  REDIS_URL: redis://:${REDIS_PASSWORD:-redis_dev_only}@redis:6379/0
+  STORAGE_LOCAL_ROOT: /data/storage
 
 services:
   db:
@@ -49,7 +63,7 @@ services:
       retries: 20
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_dev_only}
-    networks: [internal, dlnet]
+    networks: [internal, dlnet, enginenet]
 
   migrate:
     build: { context: ./backend, target: dev }
@@ -85,10 +99,11 @@ services:
       redis: { condition: service_healthy }
     networks: [internal]
 
-  # Conversion workers: internal network only (no internet), hardened, resource-capped.
+  # Conversion workers: own network with only Redis (no Postgres, no internet), no secrets,
+  # hardened and resource-capped. Every database write happens in the default worker.
   worker-light:
     build: { context: ./backend, target: worker-light }
-    environment: *backend-env
+    environment: *engine-env
     volumes:
       - ./backend:/app
       - storage:/data/storage
@@ -98,15 +113,15 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     mem_limit: 3g
+    cpus: 1.5
     pids_limit: 256
     depends_on:
-      migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
-    networks: [internal]
+    networks: [enginenet]
 
   worker-media:
     build: { context: ./backend, target: worker-media }
-    environment: *backend-env
+    environment: *engine-env
     volumes:
       - ./backend:/app
       - storage:/data/storage
@@ -116,15 +131,15 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     mem_limit: 3g
+    cpus: 2
     pids_limit: 128
     depends_on:
-      migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
-    networks: [internal]
+    networks: [enginenet]
 
   worker-ai:
     build: { context: ./backend, target: worker-ai }
-    environment: *backend-env
+    environment: *engine-env
     volumes:
       - ./backend:/app
       - storage:/data/storage
@@ -134,11 +149,11 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     mem_limit: 3g
+    cpus: 2
     pids_limit: 64
     depends_on:
-      migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
-    networks: [internal]
+    networks: [enginenet]
 
   # Only route to the internet for downloads. Re-checks every destination (SSRF) and dials the
   # validated IP. Not reachable from the internal network, only from dlnet.
@@ -158,6 +173,7 @@ services:
     build: { context: ./backend, target: worker-download }
     environment:
       APP_ENV: ${APP_ENV:-development}
+      PROCESS_ROLE: engine
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis_dev_only}@redis:6379/0
       STORAGE_LOCAL_ROOT: /data/storage
       EGRESS_PROXY_URL: http://egress-proxy:3128
@@ -171,6 +187,7 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     mem_limit: 1g
+    cpus: 1
     pids_limit: 128
     depends_on:
       redis: { condition: service_healthy }
@@ -222,10 +239,46 @@ services:
       - proxy
     networks: [edge]
 
+  # Engine test runners (profile "tests"): same images as the engine workers, but with the TEST database so
+  # the full-flow tests can run. Never started by `docker compose up`.
+  #   docker compose --profile tests run --rm --build tests-light pytest tests/engines -o addopts=""
+  tests-light:
+    build: { context: ./backend, target: worker-light }
+    profiles: ["tests"]
+    environment: *backend-env
+    volumes: [./backend:/app, storage:/data/storage]
+    tmpfs: ["/tmp:size=1g,mode=1777"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [internal]
+  tests-media:
+    build: { context: ./backend, target: worker-media }
+    profiles: ["tests"]
+    environment: *backend-env
+    volumes: [./backend:/app, storage:/data/storage]
+    tmpfs: ["/tmp:size=2g,mode=1777"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [internal]
+  tests-ai:
+    build: { context: ./backend, target: worker-ai }
+    profiles: ["tests"]
+    environment: *backend-env
+    volumes: [./backend:/app, storage:/data/storage]
+    tmpfs: ["/tmp:size=1g,mode=1777"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [internal]
+
 networks:
   internal:
     internal: true
   dlnet:
+    internal: true
+  enginenet:
     internal: true
   edge: {}
   egress: {}

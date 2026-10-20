@@ -342,21 +342,37 @@ def _remote_args(db: Session, job: ProcessingJob) -> list:
             meta["limits"], meta.get("original_name", "video.x"), meta.get("domain", "")]
 
 
+def job_spec(db: Session, job: ProcessingJob) -> dict:
+    """Everything an engine worker needs, as plain data: engine workers have no database access."""
+    capability = db.get(ToolCapability, job.capability_id)
+    return {
+        "job_id": str(job.id),
+        "tool_id": job.tool_id,
+        "input_format": capability.input_format,
+        "output_format": capability.output_format,
+        "options": dict(job.options),
+        "input_key": job.input_key,
+        "input_meta": dict(job.input_meta),
+    }
+
+
 def dispatch(db: Session, job: ProcessingJob) -> None:
-    from app.workers.tasks import download_fetch, run_job
+    from app.workers.tasks import download_fetch, execute_job
 
     handler = get_handler(job.tool_id)
     try:
         if getattr(handler, "remote_queue", None):
             result = download_fetch.apply_async(args=_remote_args(db, job), queue=handler.remote_queue)
         else:
-            result = run_job.apply_async(args=[str(job.id)], queue=job.queue)
+            result = execute_job.apply_async(args=[job_spec(db, job)], queue=job.queue)
     except Exception:
         log.exception("enqueue failed", extra={"job_id": str(job.id)})
         fail_job(db, job.id, error_class="system", error_code="enqueue_failed")
         raise AppError("Não foi possível iniciar o processamento. Tente novamente.",
                        code="enqueue_failed") from None
     if result is not None and getattr(result, "id", None):
+        if db.in_transaction():
+            db.commit()  # close the reads done while building the task arguments
         with db.begin():
             locked = db.get(ProcessingJob, job.id, with_for_update=True)
             if locked.task_id is None:
@@ -366,30 +382,22 @@ def dispatch(db: Session, job: ProcessingJob) -> None:
 # --------------------------------------------------------------------------- execution
 
 
-def run(db: Session, job_id: uuid.UUID) -> None:
-    """Execute a queued job. Safe to call twice: only a `queued` job is started."""
-    with db.begin():
-        job = db.get(ProcessingJob, job_id, with_for_update=True)
-        if job is None or job.status != "queued":
-            return
-        job.status = "processing"
-        job.started_at = clock.now()
-        options = dict(job.options)
-        tool_id = job.tool_id
-        capability = db.get(ToolCapability, job.capability_id)
-        input_format, output_format = capability.input_format, capability.output_format
-        input_key, input_meta = job.input_key, dict(job.input_meta)
-
-    handler = get_handler(tool_id)
+def execute_spec(spec: dict) -> dict:
+    """Engine-worker side (NO database): run the tool and store the output. Returns the outcome as data;
+    the default worker applies it (commit or refund) with `finish_engine`."""
+    job_id = spec["job_id"]
+    handler = get_handler(spec["tool_id"])
+    input_format, output_format = spec["input_format"], spec["output_format"]
+    input_meta = dict(spec["input_meta"])
     work_dir = Path(tempfile.mkdtemp(prefix="job-"))
     try:
         if handler is None:
             raise ToolSystemError("handler_missing")
         input_path = None
-        if input_key:
+        if spec["input_key"]:
             input_path = work_dir / f"input.{input_format}"
             try:
-                shutil.copyfile(get_storage().open_path(input_key), input_path)
+                shutil.copyfile(get_storage().open_path(spec["input_key"]), input_path)
             except (FileNotFoundError, ValueError):
                 raise ToolSystemError("input_missing") from None
         extra_paths = {}
@@ -400,21 +408,46 @@ def run(db: Session, job_id: uuid.UUID) -> None:
             except (FileNotFoundError, ValueError):
                 raise ToolSystemError("input_missing") from None
         input_meta["extra_paths"] = extra_paths
-        result = handler.execute(input_format, output_format, options, work_dir, input_path, input_meta)
-        key = new_key(f"jobs/{job_id.hex}", result.output_path.suffix.lstrip("."))
+        result = handler.execute(input_format, output_format, dict(spec["options"]), work_dir, input_path,
+                                 input_meta)
+        key = new_key(f"jobs/{uuid.UUID(job_id).hex}", result.output_path.suffix.lstrip("."))
         get_storage().save_file(key, result.output_path)
-        complete_job(db, job_id, output_key=key, filename=result.filename)
+        return {"ok": True, "key": key, "filename": result.filename}
     except ToolUserError as exc:
-        fail_job(db, job_id, error_class="user_input", error_code=exc.code)
+        return {"ok": False, "error_class": "user_input", "error_code": exc.code}
     except ToolSystemError as exc:
-        fail_job(db, job_id, error_class="system", error_code=exc.code)
+        return {"ok": False, "error_class": "system", "error_code": exc.code}
     except (TimeoutError, SoftTimeLimitExceeded):
-        fail_job(db, job_id, error_class="timeout", error_code="time_limit")
+        return {"ok": False, "error_class": "timeout", "error_code": "time_limit"}
     except Exception:
-        log.exception("job crashed", extra={"job_id": str(job_id)})
-        fail_job(db, job_id, error_class="system", error_code="unexpected")
+        log.exception("job crashed", extra={"job_id": job_id})
+        return {"ok": False, "error_class": "system", "error_code": "unexpected"}
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
+
+
+ERROR_CLASSES = ("user_input", "system", "timeout")
+
+
+def finish_engine(db: Session, job_id: uuid.UUID, result: dict) -> None:
+    """Default-worker side: apply an engine outcome exactly once (a redelivered task is a no-op).
+    The outcome comes from a less trusted worker, so it is validated, never used as-is."""
+    mark_processing(db, job_id)
+    if result.get("ok") is True and isinstance(result.get("key"), str):
+        key = result["key"]
+        if not key.startswith(f"jobs/{job_id.hex}/") or ".." in key:
+            fail_job(db, job_id, error_class="system", error_code="invalid_output")
+            return
+        complete_job(db, job_id, output_key=key, filename=str(result.get("filename") or "arquivo")[:200])
+    else:
+        error_class = result.get("error_class")
+        error_code = str(result.get("error_code") or "unexpected")[:60]
+        fail_job(db, job_id, error_class=error_class if error_class in ERROR_CLASSES else "system",
+                 error_code=error_code)
+        if error_code == "unexpected":
+            from app.services import monitoring
+
+            monitoring.alert("engine_crash", f"Falha inesperada num motor (job {job_id}). Ver logs dos workers.")
 
 
 def _lock_owner_then_job(db: Session, job_id: uuid.UUID) -> ProcessingJob | None:
@@ -509,12 +542,7 @@ def mark_processing(db: Session, job_id: uuid.UUID) -> None:
 
 def finish_remote(db: Session, job_id: uuid.UUID, result: dict) -> None:
     """Apply worker-download's outcome: commit on success, refund on system failure/timeout."""
-    mark_processing(db, job_id)
-    if result.get("ok"):
-        complete_job(db, job_id, output_key=result["key"], filename=result["filename"])
-    else:
-        fail_job(db, job_id, error_class=result.get("error_class", "system"),
-                 error_code=result.get("error_code", "extractor_failed"))
+    finish_engine(db, job_id, result if result.get("ok") else {"error_code": "extractor_failed", **result})
     job = db.get(ProcessingJob, job_id)
     if job is not None:
         downloads.record_stat(job.input_meta.get("domain", "?"), "fetch",

@@ -104,11 +104,19 @@ def create(db: Session, actor, stream: BinaryIO, filename: str | None) -> Upload
     return upload
 
 
+PROBE_LIMITS = ("image_max_pixels", "doc_max_pages", "video_max_seconds", "video_max_pixels", "audio_max_seconds")
+
+
 def _dispatch_probe(db: Session, upload: Upload) -> None:
     from app.workers.tasks import probe_upload
 
+    # Engine workers have no database access: limits travel with the task.
+    limits = {k: int(get_setting(db, k)) for k in PROBE_LIMITS}
+    if db.in_transaction():
+        db.commit()
     try:
-        probe_upload.apply_async(args=[str(upload.id)], queue=matrix.QUEUE_BY_CATEGORY[upload.category])
+        probe_upload.apply_async(args=[str(upload.id), upload.storage_key, upload.format, upload.category, limits],
+                                 queue=matrix.QUEUE_BY_CATEGORY[upload.category])
     except Exception:
         log.exception("probe enqueue failed")
         _finish(db, upload.id, error=("probe_unavailable", "Não foi possível analisar o arquivo agora."))
@@ -143,37 +151,48 @@ def _finish(db: Session, upload_id: uuid.UUID, *, meta: dict | None = None, fmt:
         upload.status = "ready"
 
 
-def probe(db: Session, upload_id: uuid.UUID) -> None:
-    upload = db.get(Upload, upload_id)
-    if upload is None or upload.status != "probing":
-        return
-    fmt, category = upload.format, upload.category
-    db.commit()
+def probe_compute(storage_key: str, fmt: str, category: str, limits: dict) -> dict:
+    """Engine-worker side (NO database): inspect the real file. Returns the outcome as data."""
     work = Path(tempfile.mkdtemp(prefix="probe-"))
     try:
         local = work / f"input.{fmt}"
-        shutil.copyfile(get_storage().open_path(upload.storage_key), local)
-        meta, new_fmt = _probe_file(db, local, fmt, category, work)
-        _finish(db, upload_id, meta=meta, fmt=new_fmt)
+        shutil.copyfile(get_storage().open_path(storage_key), local)
+        meta, new_fmt = _probe_file(limits, local, fmt, category, work)
+        return {"ok": True, "meta": meta, "format": new_fmt}
     except ToolUserError as exc:
-        _finish(db, upload_id, error=(exc.code, exc.message))
-    except (ToolSystemError, TimeoutError, OSError):
+        return {"ok": False, "error_code": exc.code, "message": exc.message}
+    except (ToolSystemError, TimeoutError, OSError, ValueError):
         log.exception("probe failed")
-        _finish(db, upload_id, error=("probe_failed", "Não foi possível analisar o arquivo. Tente novamente."))
+        return {"ok": False, "error_code": "probe_failed",
+                "message": "Não foi possível analisar o arquivo. Tente novamente."}
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
 
-def _probe_file(db: Session, path: Path, fmt: str, category: str, work: Path) -> tuple[dict, str]:
+def apply_probe(db: Session, upload_id: uuid.UUID, result: dict) -> None:
+    """Default-worker side. The probe result comes from a less trusted worker: only known formats are accepted."""
+    if result.get("ok") is True:
+        fmt = result.get("format")
+        meta = result.get("meta") if isinstance(result.get("meta"), dict) else {}
+        if fmt not in CATEGORY:
+            _finish(db, upload_id, error=("probe_failed", "Não foi possível analisar o arquivo. Tente novamente."))
+            return
+        _finish(db, upload_id, meta=meta, fmt=fmt)
+    else:
+        _finish(db, upload_id, error=(str(result.get("error_code") or "probe_failed")[:60],
+                                      str(result.get("message") or "Arquivo inválido.")[:300]))
+
+
+def _probe_file(limits: dict, path: Path, fmt: str, category: str, work: Path) -> tuple[dict, str]:
     if category == "image":
         width, height = images.dimensions(path, fmt, work)
-        if width * height > int(get_setting(db, "image_max_pixels")):
+        if width * height > int(limits["image_max_pixels"]):
             raise ToolUserError("image_too_large", "A imagem tem resolução grande demais (máximo 40 megapixels).")
         return {"width": width, "height": height}, fmt
     if category == "document":
         if fmt == "pdf":
             pages = documents.page_count(path, work)
-            if pages > int(get_setting(db, "doc_max_pages")):
+            if pages > int(limits["doc_max_pages"]):
                 raise ToolUserError("too_many_pages", "O documento tem páginas demais.")
             return {"pages": pages}, fmt
         return {}, fmt
@@ -181,11 +200,11 @@ def _probe_file(db: Session, path: Path, fmt: str, category: str, work: Path) ->
     duration = info["duration_seconds"]
     new_fmt = info.pop("format")
     if info["has_video"]:
-        if duration > int(get_setting(db, "video_max_seconds")):
+        if duration > int(limits["video_max_seconds"]):
             raise ToolUserError("too_long", "O vídeo é longo demais (máximo 10 minutos).")
-        if info["width"] * info["height"] > int(get_setting(db, "video_max_pixels")):
+        if info["width"] * info["height"] > int(limits["video_max_pixels"]):
             raise ToolUserError("resolution_too_high", "Resolução de vídeo acima do suportado (máximo 4K).")
-    elif duration > int(get_setting(db, "audio_max_seconds")):
+    elif duration > int(limits["audio_max_seconds"]):
         raise ToolUserError("too_long", "O áudio é longo demais (máximo 60 minutos).")
     return info, new_fmt
 

@@ -39,14 +39,20 @@ def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _key(value: str) -> bytes:
+    if not value:  # engine workers have no secrets: never sign with an empty key
+        raise RuntimeError("secret not available in this process")
+    return value.encode()
+
+
 def keyed_hash(value: str, *, purpose: str) -> str:
     """HMAC used to store IPs and anonymous ids without keeping the raw value."""
-    key = get_settings().guest_id_hmac_secret.encode()
+    key = _key(get_settings().guest_id_hmac_secret)
     return hmac.new(key, f"{purpose}:{value}".encode(), hashlib.sha256).hexdigest()
 
 
 def sign(message: str) -> str:
-    key = get_settings().signed_url_secret.encode()
+    key = _key(get_settings().signed_url_secret)
     return hmac.new(key, message.encode(), hashlib.sha256).hexdigest()
 
 

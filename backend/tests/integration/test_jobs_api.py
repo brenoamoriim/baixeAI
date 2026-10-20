@@ -241,9 +241,13 @@ def test_stuck_job_is_failed_and_refunded(client, monkeypatch):
 def test_run_is_idempotent_when_task_is_redelivered(client):
     _logged(client)
     job = client.create_echo().json()
+    from app.workers.tasks import execute_job
+
     with SessionLocal() as db:
-        jobs.run(db, uuid.UUID(job["id"]))  # acks_late redelivery: must be a no-op
+        spec = jobs.job_spec(db, db.get(ProcessingJob, uuid.UUID(job["id"])))
+    execute_job.apply(args=[spec])  # acks_late redelivery: the second outcome must be a no-op
     assert _credits(client) == 4
+    assert client.get(f"/api/v1/jobs/{job['id']}").json()["status"] == "completed"
     with SessionLocal() as db:
         assert db.execute(select(UsageRecord)).scalars().all().__len__() == 1
 
