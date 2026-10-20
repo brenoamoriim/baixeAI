@@ -128,6 +128,8 @@ Legenda: `[x]` feito e verificado · `[ ]` pendente · `[~]` parcial (ver nota)
 - [x] Varreduras: pip-audit, npm audit, Trivy (0 HIGH/CRITICAL corrigíveis nas imagens próprias após remover pip/npm), gitleaks no histórico (só falsos positivos revisados)
 - [x] CSP no frontend, HSTS, docs da API desligadas em produção, erros genéricos, IPs mascarados nos logs
 - [x] Modelo de ameaças atualizado com riscos residuais
+- [x] **Corrigido (bloqueio):** o pacote `backend/app/storage/` nunca tinha sido versionado (regra `storage/` ampla no `.gitignore`); só o CI num clone limpo revelou — agora versionado e o CI roda a cada push
+- [x] Imagens ARM64 (VM Oracle) construídas e com conversões/IA reais por emulação
 
 **Parte B — deploy (preparado e testado localmente)**
 - [x] `docker-compose.prod.yml` + `Caddyfile.prod` (HTTPS automático, HSTS, limites, logs com rotação, restart, recursos)
