@@ -201,3 +201,22 @@ def test_session_probe_is_200_for_visitors_and_users(new_client):
     u = make_user()
     user.login(u.email)
     assert user.get("/api/v1/me/session").json()["user"]["email"] == u.email
+
+
+def test_monitoring_snapshot_problems_and_throttled_alerts(admin, monkeypatch):
+    from app.core.config import get_settings
+    from app.services import email, monitoring
+
+    overview = admin.get("/api/v1/admin/overview").json()
+    assert set(overview["health"]["queues"]) == set(monitoring.QUEUES)
+    assert 0 <= overview["health"]["disk"]["used_percent"] <= 100
+
+    snap = {"disk": {"used_percent": 91.0}, "queues": {"media": 75, "light": 0}, "system_failures_1h": 25,
+            "payments_pending_over_2d": 0}
+    kinds = [k for k, _ in monitoring.problems(snap)]
+    assert kinds == ["disk", "queue:media", "failures"]
+
+    monkeypatch.setattr(get_settings(), "alert_email", "ops@exemplo.com")
+    assert monitoring.alert("disk", "cheio") is True
+    assert monitoring.alert("disk", "cheio de novo") is False  # throttled: once per hour per kind
+    assert [m.to for m in email.outbox] == ["ops@exemplo.com"]
