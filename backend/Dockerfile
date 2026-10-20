@@ -1,11 +1,14 @@
 # syntax=docker/dockerfile:1
-FROM python:3.12-slim AS base
+# Exact version (reproducible builds); bump deliberately and re-run the scans (docs/OPERACAO.md).
+FROM python:3.12.15-slim-trixie AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN groupadd --system app && useradd --system --gid app --home-dir /app app
 WORKDIR /app
+# The pip bundled with the base image had known CVEs (pip-audit, Phase 6).
+RUN pip install --upgrade pip==26.2.1
 COPY requirements.txt constraints.txt ./
 RUN pip install -r requirements.txt -c constraints.txt
 
@@ -19,7 +22,8 @@ USER app
 
 FROM base AS runtime
 COPY . .
-RUN mkdir -p /data/storage && chown -R app:app /data
+# pip (and the old libraries it vendors) is not needed at runtime: smaller attack surface (Trivy, Phase 6)
+RUN mkdir -p /data/storage && chown -R app:app /data && pip uninstall -y pip
 USER app
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
@@ -36,7 +40,8 @@ RUN apt-get update \
 COPY requirements-dev.txt ./
 RUN pip install -r requirements-dev.txt -c constraints.txt
 COPY . .
-RUN mkdir -p /data/storage && chown -R app:app /data
+# pip (and the old libraries it vendors) is not needed at runtime: smaller attack surface (Trivy, Phase 6)
+RUN mkdir -p /data/storage && chown -R app:app /data && pip uninstall -y pip
 USER app
 CMD ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "light", "--loglevel=INFO", "--concurrency=2"]
 
@@ -48,7 +53,8 @@ RUN apt-get update \
 COPY requirements-dev.txt ./
 RUN pip install -r requirements-dev.txt -c constraints.txt
 COPY . .
-RUN mkdir -p /data/storage && chown -R app:app /data
+# pip (and the old libraries it vendors) is not needed at runtime: smaller attack surface (Trivy, Phase 6)
+RUN mkdir -p /data/storage && chown -R app:app /data && pip uninstall -y pip
 USER app
 CMD ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "media", "--loglevel=INFO", "--concurrency=1"]
 
@@ -80,7 +86,8 @@ COPY requirements-ai.txt requirements-dev.txt ./
 RUN pip install -r requirements-ai.txt -r requirements-dev.txt -c constraints.txt
 COPY --from=ai-models /opt/models /opt/models
 COPY . .
-RUN mkdir -p /data/storage && chown -R app:app /data
+# pip (and the old libraries it vendors) is not needed at runtime: smaller attack surface (Trivy, Phase 6)
+RUN mkdir -p /data/storage && chown -R app:app /data && pip uninstall -y pip
 ENV AI_MODEL_DIR=/opt/models AI_THREADS=2
 USER app
 CMD ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "ai", "--loglevel=INFO", "--concurrency=1"]
@@ -93,6 +100,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -r
 COPY requirements-download.txt requirements-dev.txt ./
 RUN pip install -r requirements-download.txt -r requirements-dev.txt -c constraints.txt
 COPY . .
-RUN mkdir -p /data/storage && chown -R app:app /data
+# pip (and the old libraries it vendors) is not needed at runtime: smaller attack surface (Trivy, Phase 6)
+RUN mkdir -p /data/storage && chown -R app:app /data && pip uninstall -y pip
 USER app
 CMD ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "download", "--loglevel=INFO", "--concurrency=2"]
