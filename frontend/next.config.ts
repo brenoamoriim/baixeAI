@@ -35,6 +35,9 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
+  // `next dev` only: let remote testers reach the dev server through the Cloudflare quick tunnel
+  // (docker compose --profile tunnel). Has no effect on production builds.
+  allowedDevOrigins: ["*.trycloudflare.com"],
   output: "standalone",
   turbopack: {
     rules: {
