@@ -13,7 +13,7 @@ from fastapi.routing import APIRoute
 from app.core import clock
 from app.core.db import SessionLocal
 from app.models import Payment, Upload, UrlInspection, User
-from tests.conftest import make_user
+from tests.conftest import PASSWORD, make_user
 
 PUBLIC = {
     ("GET", "/api/v1/auth/csrf"), ("POST", "/api/v1/auth/register"), ("POST", "/api/v1/auth/login"),
@@ -112,7 +112,7 @@ def test_idor_matrix_other_users_resources_look_missing(new_client):
 
 def test_mass_assignment_cannot_create_admin_or_preverified(client, db):
     email = f"mass-{uuid.uuid4().hex[:6]}@exemplo.com"
-    r = client.post("/api/v1/auth/register", json={"email": email, "password": "senha-forte-123", "role": "admin",
+    r = client.post("/api/v1/auth/register", json={"email": email, "password": PASSWORD, "role": "admin",
                                                     "email_verified_at": "2020-01-01T00:00:00Z", "status": "active"})
     assert r.status_code == 202, r.text  # neutral answer (no e-mail enumeration)
     user = db.query(User).filter(User.email == email).one()

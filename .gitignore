@@ -29,8 +29,8 @@ coverage/
 htmlcov/
 
 # User files / local data
-storage/
-backups/
+/storage/
+/backups/
 *.db
 *.sqlite
 *.sqlite3
